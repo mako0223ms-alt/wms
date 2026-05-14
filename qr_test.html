@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QRテスト v3</title>
+<script src="./jsQR.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111; color: #eee; font-family: sans-serif; padding: 16px; }
+.log { background: #1a1a2e; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 13px; line-height: 1.8; max-height: 40vh; overflow-y: auto; }
+.ok  { color: #22c55e; } .err { color: #ef4444; } .info { color: #60a5fa; }
+button { background: #3b82f6; color: #fff; border: none; border-radius: 8px; padding: 16px; font-size: 17px; font-weight: 700; width: 100%; margin-top: 10px; cursor: pointer; }
+#result { background: #22c55e; color: #000; border-radius: 8px; padding: 14px; margin-top: 12px; font-size: 13px; font-weight: 700; display: none; word-break: break-all; white-space: pre-wrap; }
+img { max-width: 100%; border-radius: 8px; margin-top: 10px; display: none; }
+</style>
+</head>
+<body>
+<h2 style="text-align:center;margin-bottom:16px;">QRテスト v3（静止画方式）</h2>
+
+<label style="display:block;">
+  <button onclick="this.parentNode.querySelector('input').click()">📷 カメラで撮影してQR解析</button>
+  <input type="file" accept="image/*" capture="environment" style="display:none" onchange="analyzePhoto(this)">
+</label>
+
+<img id="preview">
+<div id="result"></div>
+<div class="log" id="log"></div>
+
+<script>
+const log = (msg, cls='info') => {
+  const el = document.getElementById('log');
+  el.innerHTML += `<div class="${cls}">${new Date().toTimeString().slice(0,8)} ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+};
+
+// jsQR読込確認
+if (typeof jsQR === 'undefined') {
+  log('❌ jsQR読込失敗 - jsqr.min.jsが見つかりません', 'err');
+} else {
+  log('✅ jsQR読込成功', 'ok');
+}
+
+function analyzePhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  log(`写真取得: ${file.name} (${Math.round(file.size/1024)}KB)`, 'info');
+
+  if (typeof jsQR === 'undefined') {
+    log('❌ jsQRが読み込まれていないため解析できません', 'err');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('preview');
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+
+    const img = new Image();
+    img.onload = () => {
+      log(`画像サイズ: ${img.width}×${img.height}`, 'info');
+
+      // 段階的にリサイズして試行
+      const sizes = [800, 1200, img.width];
+      let found = false;
+
+      for (const maxSize of sizes) {
+        if (found) break;
+        let w = img.width, h = img.height;
+        if (w > maxSize) { h = Math.round(h * maxSize / w); w = maxSize; }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const imageData = ctx.getImageData(0, 0, w, h);
+
+        log(`解析試行 ${w}×${h}...`);
+        const result = jsQR(imageData.data, w, h, { inversionAttempts: 'attemptBoth' });
+
+        if (result) {
+          log(`✅ 読取成功! (${w}×${h})`, 'ok');
+          const r = document.getElementById('result');
+          r.style.display = 'block';
+          r.textContent = '読取結果:\n' + result.data;
+          found = true;
+        } else {
+          log(`❌ 未検出 (${w}×${h})`, 'err');
+        }
+      }
+
+      if (!found) {
+        log('QRコードを検出できませんでした。より明るい場所・近い距離で再撮影してください', 'err');
+      }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+</script>
+</body>
+</html>
