@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>在庫管理</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #22263a;
+  --border: #2e3350;
+  --blue: #3b82f6;
+  --blue-dark: #1d4ed8;
+  --green: #22c55e;
+  --orange: #f97316;
+  --red: #ef4444;
+  --yellow: #eab308;
+  --text: #e2e8f0;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { background: var(--bg); color: var(--text); font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif; min-height: 100vh; }
+
+/* ─── TABS ─── */
+#tabs { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
+.tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 4px 6px; cursor: pointer; border: none; background: none; color: var(--text-muted); font-size: 10px; gap: 3px; transition: color .2s; }
+.tab-btn .icon { font-size: 22px; }
+.tab-btn.active { color: var(--blue); }
+.tab-btn.active .icon { filter: drop-shadow(0 0 6px var(--blue)); }
+
+/* ─── SCREENS ─── */
+.screen { display: none; padding: 16px 16px 80px; min-height: 100vh; }
+.screen.active { display: block; }
+
+/* ─── HEADER ─── */
+.screen-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.screen-title { font-size: 20px; font-weight: 700; letter-spacing: .5px; }
+.badge { background: var(--blue); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+
+/* ─── CARDS ─── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+.card-title { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .8px; }
+
+/* ─── BUTTONS ─── */
+.btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 20px; border-radius: var(--radius-sm); font-size: 16px; font-weight: 700; border: none; cursor: pointer; transition: all .15s; width: 100%; }
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:active { background: var(--blue-dark); transform: scale(.98); }
+.btn-success { background: var(--green); color: #fff; }
+.btn-success:active { opacity: .85; transform: scale(.98); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text-dim); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-sm { padding: 8px 14px; font-size: 13px; border-radius: 6px; }
+
+/* ─── INPUT ─── */
+.input { width: 100%; background: var(--surface2); border: 1.5px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 16px; padding: 12px 14px; outline: none; }
+.input:focus { border-color: var(--blue); }
+.label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; display: block; }
+.form-group { margin-bottom: 14px; }
+
+/* ─── LOCATION GRID ─── */
+.loc-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 10px; }
+.loc-btn { background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; color: var(--text-dim); font-size: 15px; font-weight: 700; padding: 12px 4px; cursor: pointer; transition: all .15s; text-align: center; }
+.loc-btn:active, .loc-btn.selected { background: var(--blue); border-color: var(--blue); color: #fff; transform: scale(.95); }
+
+/* ─── SCAN AREA ─── */
+#scan-overlay { position: fixed; inset: 0; background: #000; z-index: 200; display: none; flex-direction: column; }
+#scan-overlay.active { display: flex; }
+#scan-video { width: 100%; height: 100%; object-fit: cover; }
+#scan-frame { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-60%); width: 240px; height: 240px; }
+#scan-frame::before, #scan-frame::after { content: ''; position: absolute; width: 40px; height: 40px; border-color: var(--blue); border-style: solid; }
+#scan-frame::before { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+#scan-frame::after { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+.scan-corner { position: absolute; width: 40px; height: 40px; border-color: var(--blue); border-style: solid; }
+.scan-corner.tr { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+.scan-corner.bl { bottom: 0; left: 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+.scan-line { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--blue), transparent); animation: scanLine 2s linear infinite; }
+@keyframes scanLine { 0%,100%{top:0} 50%{top:100%} }
+#scan-close { position: absolute; top: max(20px, env(safe-area-inset-top)); right: 20px; background: rgba(0,0,0,.6); border: none; color: #fff; font-size: 28px; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+#scan-hint { position: absolute; bottom: 130px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,.95); font-size: 15px; text-shadow: 0 1px 4px rgba(0,0,0,.8); padding: 0 20px; }
+#scan-manual-btn { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); background: rgba(59,130,246,.9); color: #fff; border: none; border-radius: 20px; padding: 10px 28px; font-size: 15px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+
+/* ─── RESULT CARD ─── */
+.result-card { border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+.result-card.success { background: rgba(34,197,94,.12); border: 1.5px solid var(--green); }
+.result-card.warning { background: rgba(249,115,22,.12); border: 1.5px solid var(--orange); }
+.result-card.error { background: rgba(239,68,68,.12); border: 1.5px solid var(--red); }
+.result-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 3px; }
+.result-value { font-size: 15px; font-weight: 600; }
+.result-value.big { font-size: 20px; color: var(--blue); }
+.result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* ─── LIST ─── */
+.list-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px; cursor: pointer; transition: border-color .15s; }
+.list-item:active { border-color: var(--blue); }
+.list-item.shortage { border-left: 3px solid var(--orange); }
+.list-item.zero { border-left: 3px solid var(--red); opacity: .7; }
+.list-item.long-stock { border-left: 3px solid var(--yellow); }
+.item-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+.item-code { font-size: 13px; font-weight: 700; color: var(--blue); font-family: 'Courier New', monospace; }
+.item-qty { font-size: 18px; font-weight: 800; }
+.item-name { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+.tag { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+.tag-blue { background: rgba(59,130,246,.2); color: #93c5fd; }
+.tag-green { background: rgba(34,197,94,.2); color: #86efac; }
+.tag-orange { background: rgba(249,115,22,.2); color: #fdba74; }
+.tag-red { background: rgba(239,68,68,.2); color: #fca5a5; }
+.tag-yellow { background: rgba(234,179,8,.2); color: #fde047; }
+.tag-gray { background: rgba(100,116,139,.2); color: #94a3b8; }
+
+/* ─── SEARCH ─── */
+.search-wrap { position: relative; margin-bottom: 14px; }
+.search-wrap .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 16px; }
+.search-wrap .input { padding-left: 36px; }
+
+/* ─── FILTER CHIPS ─── */
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { background: var(--surface2); border: 1.5px solid var(--border); border-radius: 20px; padding: 6px 14px; font-size: 13px; white-space: nowrap; cursor: pointer; transition: all .15s; color: var(--text-dim); }
+.chip.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* ─── MODAL ─── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 300; display: none; align-items: flex-end; }
+.modal-overlay.active { display: flex; }
+.modal { background: var(--surface); border-radius: 20px 20px 0 0; padding: 20px; width: 100%; max-height: 85vh; overflow-y: auto; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+.modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 16px; }
+.modal-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+
+/* ─── UPLOAD AREA ─── */
+.upload-area { border: 2px dashed var(--border); border-radius: var(--radius); padding: 32px; text-align: center; cursor: pointer; transition: border-color .15s; }
+.upload-area:hover, .upload-area.dragover { border-color: var(--blue); }
+.upload-area .icon { font-size: 40px; margin-bottom: 8px; }
+.upload-area p { color: var(--text-muted); font-size: 14px; }
+.upload-area strong { color: var(--text); }
+
+/* ─── DASHBOARD ─── */
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; }
+.stat-num { font-size: 32px; font-weight: 800; }
+.stat-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+/* ─── TOAST ─── */
+#toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 20px; font-size: 14px; z-index: 400; opacity: 0; transition: all .3s; pointer-events: none; white-space: nowrap; }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.success { border-color: var(--green); color: var(--green); }
+#toast.error { border-color: var(--red); color: var(--red); }
+
+/* ─── EMPTY ─── */
+.empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+.empty .icon { font-size: 48px; margin-bottom: 12px; opacity: .5; }
+
+/* ─── HISTORY ─── */
+.history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.history-item:last-child { border-bottom: none; }
+
+/* ─── ADJUST ─── */
+.adjust-row { display: flex; gap: 10px; align-items: center; }
+.adjust-row .input { flex: 1; }
+
+</style>
+</head>
+<body>
+
+<!-- QRスキャンオーバーレイ -->
+<div id="scan-overlay">
+  <video id="scan-video" playsinline autoplay muted></video>
+  <div id="scan-frame">
+    <div class="scan-corner tr"></div>
+    <div class="scan-corner bl"></div>
+    <div class="scan-line"></div>
+  </div>
+  <p id="scan-hint">QRコードをフレーム内に入れてください<br><small style="opacity:.7;">明るい場所・QRに近づくと読みやすくなります</small></p>
+  <button id="scan-manual-btn" onclick="stopScan();promptManualInput(scanCallback);">手動入力</button>
+  <button id="scan-close">✕</button>
+</div>
+
+<!-- トースト通知 -->
+<div id="toast"></div>
+
+<!-- モーダル（在庫詳細・出庫入力） -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal-content">
+    <div class="modal-handle"></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ─── タブ ─── -->
+<nav id="tabs">
+  <button class="tab-btn active" onclick="showTab('receipt')" id="tab-receipt">
+    <span class="icon">📦</span><span>入庫</span>
+  </button>
+  <button class="tab-btn" onclick="showTab('issue')" id="tab-issue">
+    <span class="icon">📤</span><span>出庫</span>
+  </button>
+  <button class="tab-btn" onclick="showTab('inventory')" id="tab-inventory">
+    <span class="icon">📋</span><span>在庫</span>
+  </button>
+  <button class="tab-btn" onclick="showTab('import')" id="tab-import">
+    <span class="icon">📁</span><span>取込</span>
+  </button>
+  <button class="tab-btn" onclick="showTab('manage')" id="tab-manage">
+    <span class="icon">⚙️</span><span>管理</span>
+  </button>
+</nav>
+
+<!-- ─── 入庫画面 ─── -->
+<div class="screen active" id="screen-receipt">
+  <div class="screen-header">
+    <span class="screen-title">📦 入庫登録</span>
+    <span class="badge" id="receipt-count">今日 0件</span>
+  </div>
+
+  <button class="btn btn-primary" onclick="startScan('receipt')" style="margin-bottom:16px;font-size:18px;padding:18px;">
+    📷 スキャン開始
+  </button>
+
+  <div id="receipt-result" style="display:none;">
+    <div id="receipt-result-card"></div>
+    <div class="form-group">
+      <label class="label">入庫数量</label>
+      <input class="input" type="number" id="receipt-qty" placeholder="数量">
+    </div>
+    <div class="form-group">
+      <label class="label">格納ロケーション（1〜50）</label>
+      <div class="loc-grid" id="loc-grid-receipt"></div>
+    </div>
+    <button class="btn btn-success" id="receipt-submit-btn" onclick="submitReceipt()" disabled style="margin-top:8px;">
+      ✓ 登録する
+    </button>
+    <button class="btn btn-outline" onclick="resetReceipt()" style="margin-top:8px;">
+      キャンセル
+    </button>
+  </div>
+
+  <div id="receipt-history">
+    <div class="card-title" style="margin-top:20px;font-size:12px;color:var(--text-muted);">本日の入庫履歴</div>
+    <div id="receipt-history-list"></div>
+  </div>
+</div>
+
+<!-- ─── 出庫画面 ─── -->
+<div class="screen" id="screen-issue">
+  <div class="screen-header">
+    <span class="screen-title">📤 出庫登録</span>
+    <span class="badge" id="issue-count">今日 0件</span>
+  </div>
+  <div class="chips" id="issue-date-chips">
+    <div class="chip active" onclick="filterIssueDate('today',this)">今日</div>
+    <div class="chip" onclick="filterIssueDate('tomorrow',this)">明日</div>
+    <div class="chip" onclick="filterIssueDate('all',this)">すべて</div>
+  </div>
+  <div class="chips" id="issue-maker-chips">
+    <div class="chip active" onclick="filterIssueMaker('all',this)">すべて</div>
+    <div class="chip" onclick="filterIssueMaker('ホンダ',this)">ホンダ</div>
+    <div class="chip" onclick="filterIssueMaker('スズキ',this)">スズキ</div>
+    <div class="chip" onclick="filterIssueMaker('トヨタ',this)">トヨタ</div>
+    <div class="chip" onclick="filterIssueMaker('日産',this)">日産</div>
+    <div class="chip" onclick="filterIssueMaker('ダイハツ',this)">ダイハツ</div>
+    <div class="chip" onclick="filterIssueMaker('ミツビシ',this)">ミツビシ</div>
+  </div>
+  <div id="issue-list"></div>
+  <button class="btn btn-outline" onclick="openManualIssue()" style="margin-top:8px;">
+    ＋ 手動出庫（KD/輸出）
+  </button>
+</div>
+
+<!-- ─── 在庫一覧画面 ─── -->
+<div class="screen" id="screen-inventory">
+  <div class="screen-header">
+    <span class="screen-title">📋 在庫一覧</span>
+    <span class="badge" id="inv-count">0品目</span>
+  </div>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input class="input" id="inv-search" placeholder="品番・品名で検索" oninput="renderInventory()">
+  </div>
+  <div class="chips" id="inv-filter-chips">
+    <div class="chip active" onclick="filterInv('all',this)">すべて</div>
+    <div class="chip" onclick="filterInv('shortage',this)">⚠ 在庫少</div>
+    <div class="chip" onclick="filterInv('zero',this)">✕ ゼロ</div>
+    <div class="chip" onclick="filterInv('long',this)">🕐 長期</div>
+  </div>
+  <div id="inventory-list"></div>
+</div>
+
+<!-- ─── データ取込画面 ─── -->
+<div class="screen" id="screen-import">
+  <div class="screen-header">
+    <span class="screen-title">📁 データ取込</span>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">受入指示 XLS（Q_A_Order）</div>
+    <div class="upload-area" id="upload-receipt-orders" onclick="triggerUpload('upload-receipt-orders-input')">
+      <div class="icon">📄</div>
+      <p><strong>タップしてファイル選択</strong><br>受入指示一覧表.xls</p>
+    </div>
+    <input type="file" id="upload-receipt-orders-input" accept=".xls,.xlsx" style="display:none" onchange="importReceiptOrders(this)">
+    <div id="import-receipt-orders-result" style="margin-top:10px;font-size:13px;color:var(--text-muted);"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">作業依頼書 XLSX（複数可）</div>
+    <div class="upload-area" id="upload-work-orders" onclick="triggerUpload('upload-work-orders-input')">
+      <div class="icon">📋</div>
+      <p><strong>タップしてファイル選択</strong><br>5_14ホンダ.xlsx など複数選択可</p>
+    </div>
+    <input type="file" id="upload-work-orders-input" accept=".xls,.xlsx" multiple style="display:none" onchange="importWorkOrders(this)">
+    <div id="import-work-orders-result" style="margin-top:10px;font-size:13px;color:var(--text-muted);"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">基幹マスタ XLSX（品目統合マスタ）</div>
+    <div class="upload-area" onclick="triggerUpload('upload-master-input')">
+      <div class="icon">🗂</div>
+      <p><strong>タップしてファイル選択</strong><br>基幹データ_統合マスタ.xlsx</p>
+    </div>
+    <input type="file" id="upload-master-input" accept=".xls,.xlsx" style="display:none" onchange="importMaster(this)">
+    <div id="import-master-result" style="margin-top:10px;font-size:13px;color:var(--text-muted);"></div>
+  </div>
+</div>
+
+<!-- ─── 管理画面 ─── -->
+<div class="screen" id="screen-manage">
+  <div class="screen-header">
+    <span class="screen-title">⚙️ 管理</span>
+  </div>
+
+  <!-- ダッシュボード -->
+  <div class="stats-grid" id="dashboard-stats"></div>
+
+  <!-- 在庫調整 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">在庫調整</div>
+    <div class="form-group">
+      <label class="label">品番（支給品番または梱包品番）</label>
+      <input class="input" id="adjust-search" placeholder="品番を入力" oninput="adjustSearch()">
+      <div id="adjust-search-results" style="margin-top:6px;"></div>
+    </div>
+    <div id="adjust-form" style="display:none;">
+      <div class="form-group">
+        <label class="label">現在庫数</label>
+        <input class="input" id="adjust-current" readonly style="opacity:.6;">
+      </div>
+      <div class="form-group">
+        <label class="label">調整後数量</label>
+        <input class="input" type="number" id="adjust-new-qty" placeholder="新しい数量">
+      </div>
+      <div class="form-group">
+        <label class="label">調整理由</label>
+        <select class="input" id="adjust-reason">
+          <option value="棚卸差異">棚卸差異</option>
+          <option value="現品票手書き変更">現品票手書き変更</option>
+          <option value="入力誤り修正">入力誤り修正</option>
+          <option value="その他">その他</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="submitAdjust()">調整を登録</button>
+    </div>
+  </div>
+
+  <!-- ロケーション移動 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">ロケーション移動</div>
+    <div class="form-group">
+      <label class="label">品番</label>
+      <input class="input" id="move-item" placeholder="品番を入力">
+    </div>
+    <div class="adjust-row">
+      <div style="flex:1;">
+        <label class="label">移動元</label>
+        <input class="input" type="number" id="move-from" placeholder="番号">
+      </div>
+      <div style="color:var(--text-muted);padding-top:28px;">→</div>
+      <div style="flex:1;">
+        <label class="label">移動先</label>
+        <input class="input" type="number" id="move-to" placeholder="番号">
+      </div>
+      <div style="flex:1;">
+        <label class="label">数量</label>
+        <input class="input" type="number" id="move-qty" placeholder="個数">
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="submitMove()" style="margin-top:10px;">移動を登録</button>
+  </div>
+
+  <!-- データ操作 -->
+  <div class="card">
+    <div class="card-title">データ操作</div>
+    <button class="btn btn-outline" onclick="exportData()" style="margin-bottom:8px;">💾 全データをエクスポート（JSON）</button>
+    <label class="btn btn-outline" style="cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 20px;border-radius:8px;font-size:16px;font-weight:700;border:1.5px solid var(--border);color:var(--text-dim);">
+      📂 JSONからインポート（復元）
+      <input type="file" accept=".json" style="display:none" onchange="importData(this)">
+    </label>
+    <button class="btn btn-danger" onclick="confirmClearAll()" style="margin-top:8px;">🗑 全データを削除</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════
+const DB = {
+  receiptOrders: [],   // 受入指示データ
+  workOrders: [],      // 作業依頼書データ
+  masterItems: [],     // 品目マスタ
+  inventory: [],       // 在庫 [{invId,supplyItemCode,itemCode,itemName,currentQty,locationId,lotNo,lastReceiptDate,lastIssueDate,updatedAt}]
+  receiptHistory: [],  // 入庫履歴
+  issueHistory: [],    // 出庫履歴
+  adjustHistory: [],   // 調整履歴
+};
+
+let scanCallback = null;
+let currentReceiptData = null;
+let selectedLocation = null;
+let issueDateFilter = 'today';
+let issueMakerFilter = 'all';
+let invFilter = 'all';
+let adjustTarget = null;
+
+// ════════════════════════════════════════════
+// PERSISTENCE
+// ════════════════════════════════════════════
+function saveDB() {
+  try { localStorage.setItem('roki_wms', JSON.stringify(DB)); } catch(e) {}
+}
+function loadDB() {
+  try {
+    const d = localStorage.getItem('roki_wms');
+    if (d) Object.assign(DB, JSON.parse(d));
+  } catch(e) {}
+}
+
+// ════════════════════════════════════════════
+// TAB
+// ════════════════════════════════════════════
+function showTab(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'inventory') renderInventory();
+  if (name === 'issue') renderIssueList();
+  if (name === 'manage') renderDashboard();
+}
+
+// ════════════════════════════════════════════
+// QR SCAN
+// ════════════════════════════════════════════
+let scanStream = null;
+let scanAnimFrame = null;
+let scanCanvas = null;
+let scanCtx = null;
+let lastScanTime = 0;
+let zxingReader = null;
+
+function startScan(mode) {
+  scanCallback = mode;
+  const overlay = document.getElementById('scan-overlay');
+  overlay.classList.add('active');
+  const video = document.getElementById('scan-video');
+
+  // キャンバスを再利用
+  if (!scanCanvas) {
+    scanCanvas = document.createElement('canvas');
+    scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+  }
+
+  // ZXingリーダー初期化
+  if (typeof ZXing !== 'undefined' && !zxingReader) {
+    try { zxingReader = new ZXing.BrowserMultiFormatReader(); } catch(e) {}
+  }
+
+  navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode: { ideal: 'environment' },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      focusMode: { ideal: 'continuous' },
+    }
+  })
+  .then(stream => {
+    scanStream = stream;
+    video.srcObject = stream;
+    video.play();
+    video.addEventListener('loadedmetadata', () => {
+      scanCanvas.width = video.videoWidth;
+      scanCanvas.height = video.videoHeight;
+      scanAnimFrame = requestAnimationFrame(scanFrame);
+    }, { once: true });
+  })
+  .catch(err => {
+    stopScan();
+    showToast('カメラエラー: ' + err.message, 'error');
+    promptManualInput(mode);
+  });
+}
+
+function scanFrame(timestamp) {
+  const video = document.getElementById('scan-video');
+  if (!video || video.readyState < video.HAVE_ENOUGH_DATA) {
+    scanAnimFrame = requestAnimationFrame(scanFrame);
+    return;
+  }
+
+  // 150ms間隔でスキャン（CPU負荷軽減＋精度向上）
+  if (timestamp - lastScanTime < 150) {
+    scanAnimFrame = requestAnimationFrame(scanFrame);
+    return;
+  }
+  lastScanTime = timestamp;
+
+  try {
+    scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+    const imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+
+    // jsQR で試行（通常・反転両方）
+    let result = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+
+    if (result && result.data) {
+      stopScan();
+      handleQRResult(result.data, scanCallback);
+      return;
+    }
+
+    // 中央部分を切り出して再試行（遠い・小さいQR対策）
+    const cx = Math.floor(scanCanvas.width / 4);
+    const cy = Math.floor(scanCanvas.height / 4);
+    const cw = Math.floor(scanCanvas.width / 2);
+    const ch = Math.floor(scanCanvas.height / 2);
+    const cropped = scanCtx.getImageData(cx, cy, cw, ch);
+    result = jsQR(cropped.data, cw, ch, { inversionAttempts: 'attemptBoth' });
+
+    if (result && result.data) {
+      stopScan();
+      handleQRResult(result.data, scanCallback);
+      return;
+    }
+  } catch(e) {}
+
+  scanAnimFrame = requestAnimationFrame(scanFrame);
+}
+
+function stopScan() {
+  document.getElementById('scan-overlay').classList.remove('active');
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  if (scanAnimFrame) { cancelAnimationFrame(scanAnimFrame); scanAnimFrame = null; }
+}
+
+document.getElementById('scan-close').onclick = stopScan;
+
+// ════════════════════════════════════════════
+// QR PARSE
+// ════════════════════════════════════════════
+function parseQR(raw) {
+  const s = raw.replace(/\s+/g, ' ').trim();
+  if (s.startsWith('DS')) {
+    // 英語版 Delivery Slip
+    const parts = s.split(/\s+/);
+    const supplyItemCode = parts[0].replace(/^DS/, '');
+    const lotMatch = s.match(/H0D[A-Z0-9]{7}/);
+    const tagMatch  = s.match(/N\d{14,15}/);
+    const qtyMatch  = s.match(/0{6,}(\d{1,6})(?=\s)/g);
+    let qty = 0;
+    if (qtyMatch && qtyMatch.length >= 2) {
+      qty = parseInt(qtyMatch[qtyMatch.length - 1].replace(/^0+/, '') || '0');
+    }
+    return {
+      type: 'EN',
+      supplyItemCode,
+      lotNumber: lotMatch ? lotMatch[0] : '',
+      tagId: tagMatch ? tagMatch[0] : '',
+      qty,
+      raw: s,
+    };
+  } else if (s.startsWith('PS')) {
+    // 日本語版 現品票
+    const parts = s.split(/\s+/);
+    const supplyItemCode = parts[0].replace(/^PS/, '');
+    const tagMatch = s.match(/A\d{12}/);
+    const qtyMatch = s.match(/0{6,}(\d{1,6})(?=\s)/g);
+    let qty = 0;
+    if (qtyMatch && qtyMatch.length >= 2) {
+      qty = parseInt(qtyMatch[qtyMatch.length - 1].replace(/^0+/, '') || '0');
+    }
+    return {
+      type: 'JP',
+      supplyItemCode,
+      lotNumber: '',
+      tagId: tagMatch ? tagMatch[0] : '',
+      qty,
+      raw: s,
+    };
+  }
+  return { type: 'UNKNOWN', raw: s, supplyItemCode: '', qty: 0, lotNumber: '', tagId: '' };
+}
+
+// ════════════════════════════════════════════
+// RECEIPT（入庫）
+// ════════════════════════════════════════════
+function handleQRResult(raw, mode) {
+  if (mode !== 'receipt') return;
+  const parsed = parseQR(raw);
+
+  // 重複チェック
+  if (parsed.tagId) {
+    const dup = DB.receiptHistory.find(r => r.tagId === parsed.tagId);
+    if (dup) {
+      showReceiptResult({
+        status: 'duplicate',
+        message: `登録済み（${dup.receiptDate} ロケーション${dup.locationId}番）`,
+        parsed,
+      });
+      return;
+    }
+  }
+
+  // 受入指示と照合
+  let matched = null;
+  if (parsed.type === 'EN' && parsed.lotNumber) {
+    matched = DB.receiptOrders.find(r => r.OrderNo === parsed.lotNumber);
+  } else if (parsed.type === 'JP' && parsed.supplyItemCode) {
+    const candidates = DB.receiptOrders.filter(r => r.ItemNo === parsed.supplyItemCode);
+    if (candidates.length > 0) {
+      const today = new Date();
+      candidates.sort((a, b) => {
+        const da = Math.abs(new Date(a.DeliveryDate) - today);
+        const db2 = Math.abs(new Date(b.DeliveryDate) - today);
+        return da - db2;
+      });
+      matched = candidates[0];
+    }
+  }
+
+  currentReceiptData = { parsed, matched };
+  showReceiptResult({ status: matched ? 'matched' : 'unmatched', parsed, matched });
+}
+
+function showReceiptResult({ status, message, parsed, matched }) {
+  const el = document.getElementById('receipt-result');
+  const card = document.getElementById('receipt-result-card');
+  el.style.display = 'block';
+  selectedLocation = null;
+  renderLocGrid('loc-grid-receipt');
+
+  const homeLabel = matched ? (getHomeLabel(matched.HomeID) || matched.HomeID) : '';
+
+  if (status === 'duplicate') {
+    card.innerHTML = `<div class="result-card error">
+      <div class="result-label">⚠ 登録済み現品票</div>
+      <div class="result-value">${message}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">${parsed.supplyItemCode}</div>
+    </div>`;
+    document.getElementById('receipt-submit-btn').disabled = true;
+    document.getElementById('receipt-qty').value = '';
+    return;
+  }
+
+  if (status === 'matched') {
+    card.innerHTML = `<div class="result-card success">
+      <div class="result-grid">
+        <div><div class="result-label">支給品番</div><div class="result-value" style="font-size:13px;font-family:monospace;">${parsed.supplyItemCode}</div></div>
+        <div><div class="result-label">入庫数量</div><div class="result-value big">${parsed.qty || matched.OrderNum}</div></div>
+        <div style="grid-column:1/-1;"><div class="result-label">品名</div><div class="result-value" style="font-size:14px;">${matched.ItemName}</div></div>
+        <div><div class="result-label">仕向地</div><div class="result-value">${homeLabel}</div></div>
+        <div><div class="result-label">納期</div><div class="result-value" style="font-size:14px;">${matched.DeliveryDate || ''}</div></div>
+      </div>
+    </div>`;
+    document.getElementById('receipt-qty').value = parsed.qty || matched.OrderNum || '';
+  } else {
+    card.innerHTML = `<div class="result-card warning">
+      <div class="result-label">⚠ 受入指示データなし</div>
+      <div class="result-value" style="font-family:monospace;font-size:14px;">${parsed.supplyItemCode || '不明'}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">数量を手入力してロケーションを選択してください</div>
+    </div>`;
+    document.getElementById('receipt-qty').value = parsed.qty || '';
+  }
+  document.getElementById('receipt-submit-btn').disabled = false;
+}
+
+function renderLocGrid(id, selected = null) {
+  const grid = document.getElementById(id);
+  grid.innerHTML = '';
+  for (let i = 1; i <= 50; i++) {
+    const btn = document.createElement('div');
+    btn.className = 'loc-btn' + (selected === i ? ' selected' : '');
+    btn.textContent = i;
+    btn.onclick = () => selectLoc(id, i);
+    grid.appendChild(btn);
+  }
+}
+
+function selectLoc(gridId, num) {
+  selectedLocation = num;
+  renderLocGrid(gridId, num);
+  if (gridId === 'loc-grid-receipt') {
+    document.getElementById('receipt-submit-btn').disabled = false;
+  }
+}
+
+function submitReceipt() {
+  if (!currentReceiptData) return;
+  if (!selectedLocation) { showToast('ロケーションを選択してください', 'error'); return; }
+  const qty = parseInt(document.getElementById('receipt-qty').value) || 0;
+  if (qty <= 0) { showToast('数量を入力してください', 'error'); return; }
+
+  const { parsed, matched } = currentReceiptData;
+  const supplyCode = parsed.supplyItemCode;
+  const itemCode = matched ? (getMasterItemCode(supplyCode) || supplyCode) : supplyCode;
+  const itemName = matched ? matched.ItemName : supplyCode;
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date().toISOString();
+
+  // 在庫に加算
+  const existing = DB.inventory.find(i => i.supplyItemCode === supplyCode && i.locationId === selectedLocation);
+  if (existing) {
+    existing.currentQty += qty;
+    existing.lastReceiptDate = today;
+    existing.updatedAt = now;
+  } else {
+    DB.inventory.push({
+      invId: 'INV-' + String(DB.inventory.length + 1).padStart(6,'0'),
+      supplyItemCode: supplyCode,
+      itemCode,
+      itemName,
+      currentQty: qty,
+      locationId: selectedLocation,
+      lotNo: parsed.lotNumber || (matched ? matched.OrderNo : ''),
+      lastReceiptDate: today,
+      lastIssueDate: '',
+      updatedAt: now,
+    });
+  }
+
+  // 入庫履歴
+  DB.receiptHistory.push({
+    receiptId: 'RCV-' + String(DB.receiptHistory.length + 1).padStart(6,'0'),
+    scanType: parsed.type,
+    tagId: parsed.tagId || '',
+    orderNo: matched ? matched.OrderNo : '',
+    supplyItemCode: supplyCode,
+    itemCode,
+    itemName,
+    receiptQty: qty,
+    locationId: selectedLocation,
+    homeId: matched ? matched.HomeID : '',
+    receiptDate: today,
+    createdAt: now,
+  });
+
+  saveDB();
+  showToast('✓ 入庫登録完了 ロケーション' + selectedLocation + '番', 'success');
+  updateReceiptCount();
+  renderReceiptHistory();
+  resetReceipt();
+}
+
+function resetReceipt() {
+  document.getElementById('receipt-result').style.display = 'none';
+  currentReceiptData = null;
+  selectedLocation = null;
+}
+
+function updateReceiptCount() {
+  const today = new Date().toISOString().split('T')[0];
+  const cnt = DB.receiptHistory.filter(r => r.receiptDate === today).length;
+  document.getElementById('receipt-count').textContent = '今日 ' + cnt + '件';
+}
+
+function renderReceiptHistory() {
+  const today = new Date().toISOString().split('T')[0];
+  const todays = DB.receiptHistory.filter(r => r.receiptDate === today).slice(-10).reverse();
+  const el = document.getElementById('receipt-history-list');
+  if (todays.length === 0) {
+    el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:8px 0;">本日の入庫はまだありません</div>';
+    return;
+  }
+  el.innerHTML = todays.map(r => `
+    <div class="history-item">
+      <div>
+        <div style="font-size:13px;font-weight:700;font-family:monospace;">${r.supplyItemCode}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${r.itemName}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:16px;font-weight:800;">${r.receiptQty}<span style="font-size:11px;color:var(--text-muted);">個</span></div>
+        <div style="font-size:11px;color:var(--blue);">ロケーション ${r.locationId}番</div>
+      </div>
+    </div>`).join('');
+}
+
+function promptManualInput(mode) {
+  const raw = prompt('QRコードを読み取れませんでした。\n品番を直接入力してください（例: H17218-Z0A-8103）');
+  if (raw) handleQRResult('PS' + raw, mode);
+}
+
+// ════════════════════════════════════════════
+// ISSUE（出庫）
+// ════════════════════════════════════════════
+function filterIssueDate(val, el) {
+  issueDateFilter = val;
+  document.querySelectorAll('#issue-date-chips .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderIssueList();
+}
+function filterIssueMaker(val, el) {
+  issueMakerFilter = val;
+  document.querySelectorAll('#issue-maker-chips .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderIssueList();
+}
+
+function renderIssueList() {
+  const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  let orders = DB.workOrders;
+
+  if (issueDateFilter === 'today') orders = orders.filter(o => o.DueDate && o.DueDate.startsWith(today));
+  else if (issueDateFilter === 'tomorrow') orders = orders.filter(o => o.DueDate && o.DueDate.startsWith(tomorrow));
+
+  if (issueMakerFilter !== 'all') orders = orders.filter(o => o.Maker === issueMakerFilter);
+
+  const el = document.getElementById('issue-list');
+  const cnt = DB.issueHistory.filter(i => i.issueDate === today).length;
+  document.getElementById('issue-count').textContent = '今日 ' + cnt + '件';
+
+  if (orders.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="icon">📭</div><div>作業依頼書データがありません<br><small>「取込」タブからExcelを読み込んでください</small></div></div>';
+    return;
+  }
+
+  el.innerHTML = orders.map(o => {
+    const inv = DB.inventory.filter(i => i.itemCode === o.ItemCode || i.supplyItemCode === o.ItemCode);
+    const totalStock = inv.reduce((s,i) => s + i.currentQty, 0);
+    const issued = DB.issueHistory.filter(i => i.workOrderNo === o.WorkOrderNo).reduce((s,i) => s + i.issueQty, 0);
+    const remaining = o.OrderQty - issued;
+    let cls = '';
+    if (remaining <= 0) cls = '';
+    else if (totalStock === 0) cls = 'zero';
+    else if (totalStock < remaining) cls = 'shortage';
+
+    const locs = inv.map(i => `${i.locationId}番(${i.currentQty}個)`).join(' ');
+    return `<div class="list-item ${cls}" onclick='openIssueModal(${JSON.stringify(o)})'>
+      <div class="item-top">
+        <div class="item-code">${o.ItemCode}</div>
+        <div class="item-qty ${totalStock === 0 ? 'tag-red' : totalStock < remaining ? '' : ''}" style="color:${totalStock === 0 ? 'var(--red)' : totalStock < remaining ? 'var(--orange)' : 'var(--green)'};">${remaining}個</div>
+      </div>
+      <div class="item-name">${o.ItemName || ''}</div>
+      <div class="item-meta">
+        <span class="tag tag-blue">${o.Maker || ''}</span>
+        <span class="tag tag-gray">在庫 ${totalStock}個</span>
+        ${locs ? `<span class="tag tag-gray">📍 ${locs}</span>` : ''}
+        ${remaining <= 0 ? '<span class="tag tag-green">✓ 完了</span>' : ''}
+        ${totalStock === 0 && remaining > 0 ? '<span class="tag tag-red">入庫待ち</span>' : ''}
+        ${totalStock > 0 && totalStock < remaining ? '<span class="tag tag-orange">⚠ 不足</span>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openIssueModal(order) {
+  const inv = DB.inventory.filter(i => i.itemCode === order.ItemCode || i.supplyItemCode === order.ItemCode);
+  const totalStock = inv.reduce((s,i) => s + i.currentQty, 0);
+  const issued = DB.issueHistory.filter(i => i.workOrderNo === order.WorkOrderNo).reduce((s,i) => s + i.issueQty, 0);
+  const remaining = order.OrderQty - issued;
+
+  const locOptions = inv.map(i => `<option value="${i.locationId}">${i.locationId}番（${i.currentQty}個）</option>`).join('');
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="modal-title">出庫登録</div>
+    <div class="result-card ${totalStock >= remaining ? 'success' : totalStock > 0 ? 'warning' : 'error'}" style="margin-bottom:14px;">
+      <div style="font-weight:700;font-family:monospace;">${order.ItemCode}</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">${order.ItemName || ''}</div>
+      <div style="margin-top:8px;display:flex;gap:16px;">
+        <div><div class="result-label">指示数量</div><div class="result-value">${remaining}個</div></div>
+        <div><div class="result-label">現在庫</div><div class="result-value" style="color:${totalStock===0?'var(--red)':totalStock<remaining?'var(--orange)':'var(--green)'};">${totalStock}個</div></div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="label">出庫数量</label>
+      <input class="input" type="number" id="issue-qty-input" value="${Math.min(remaining, totalStock)}" max="${totalStock}">
+    </div>
+    <div class="form-group">
+      <label class="label">出庫元ロケーション</label>
+      <select class="input" id="issue-loc-select">
+        ${locOptions || '<option value="">（在庫なし）</option>'}
+      </select>
+    </div>
+    <button class="btn btn-success" onclick='submitIssue(${JSON.stringify(order)})' ${totalStock===0?'disabled':''}>出庫を登録</button>
+    <button class="btn btn-outline" onclick="closeModal()" style="margin-top:8px;">キャンセル</button>
+  `;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+
+function submitIssue(order) {
+  const qty = parseInt(document.getElementById('issue-qty-input').value) || 0;
+  const locId = parseInt(document.getElementById('issue-loc-select').value) || 0;
+  if (qty <= 0) { showToast('数量を入力してください', 'error'); return; }
+
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date().toISOString();
+
+  // 在庫から減算
+  const inv = DB.inventory.find(i => (i.itemCode === order.ItemCode || i.supplyItemCode === order.ItemCode) && i.locationId === locId);
+  if (inv) {
+    inv.currentQty = Math.max(0, inv.currentQty - qty);
+    inv.lastIssueDate = today;
+    inv.updatedAt = now;
+  }
+
+  DB.issueHistory.push({
+    issueId: 'ISS-' + String(DB.issueHistory.length + 1).padStart(6,'0'),
+    workOrderNo: order.WorkOrderNo || '',
+    itemCode: order.ItemCode,
+    itemName: order.ItemName || '',
+    issueQty: qty,
+    sourceLocationId: locId,
+    maker: order.Maker || '',
+    dueDate: order.DueDate || '',
+    issueDate: today,
+    createdAt: now,
+  });
+
+  saveDB();
+  closeModal();
+  showToast('✓ 出庫登録完了', 'success');
+  renderIssueList();
+}
+
+function openManualIssue() {
+  document.getElementById('modal-body').innerHTML = `
+    <div class="modal-title">手動出庫（KD・輸出）</div>
+    <div class="form-group">
+      <label class="label">品番（梱包品番または支給品番）</label>
+      <input class="input" id="manual-issue-code" placeholder="品番を入力" oninput="manualIssueSearch()">
+      <div id="manual-issue-results" style="margin-top:6px;"></div>
+    </div>
+    <div id="manual-issue-form" style="display:none;">
+      <div class="form-group">
+        <label class="label">出庫数量</label>
+        <input class="input" type="number" id="manual-issue-qty">
+      </div>
+      <div class="form-group">
+        <label class="label">出庫元ロケーション</label>
+        <select class="input" id="manual-issue-loc"></select>
+      </div>
+      <div class="form-group">
+        <label class="label">メーカー</label>
+        <select class="input" id="manual-issue-maker">
+          <option>KD梱包</option><option>輸出</option><option>ホンダ</option>
+          <option>スズキ</option><option>トヨタ</option><option>日産</option>
+          <option>ダイハツ</option><option>ミツビシ</option>
+        </select>
+      </div>
+      <button class="btn btn-success" id="manual-issue-submit">出庫を登録</button>
+    </div>
+    <button class="btn btn-outline" onclick="closeModal()" style="margin-top:8px;">キャンセル</button>
+  `;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+
+let manualIssueItem = null;
+function manualIssueSearch() {
+  const q = document.getElementById('manual-issue-code').value.trim();
+  const results = DB.inventory.filter(i => i.supplyItemCode.includes(q) || i.itemCode.includes(q)).slice(0, 5);
+  const el = document.getElementById('manual-issue-results');
+  el.innerHTML = results.map(i => `
+    <div class="list-item" style="padding:8px 12px;" onclick="selectManualIssueItem(${JSON.stringify(i)})">
+      <div style="font-size:13px;font-weight:700;">${i.supplyItemCode}</div>
+      <div style="font-size:11px;color:var(--text-muted);">${i.itemName} / 在庫${i.currentQty}個 / ${i.locationId}番</div>
+    </div>`).join('');
+}
+
+function selectManualIssueItem(item) {
+  manualIssueItem = item;
+  document.getElementById('manual-issue-code').value = item.supplyItemCode;
+  document.getElementById('manual-issue-results').innerHTML = '';
+  document.getElementById('manual-issue-qty').value = item.currentQty;
+  const locSel = document.getElementById('manual-issue-loc');
+  locSel.innerHTML = `<option value="${item.locationId}">${item.locationId}番（${item.currentQty}個）</option>`;
+  document.getElementById('manual-issue-form').style.display = 'block';
+  document.getElementById('manual-issue-submit').onclick = () => {
+    const qty = parseInt(document.getElementById('manual-issue-qty').value) || 0;
+    const maker = document.getElementById('manual-issue-maker').value;
+    if (qty <= 0) { showToast('数量を入力してください','error'); return; }
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date().toISOString();
+    const inv = DB.inventory.find(i => i.invId === item.invId);
+    if (inv) { inv.currentQty = Math.max(0, inv.currentQty - qty); inv.lastIssueDate = today; inv.updatedAt = now; }
+    DB.issueHistory.push({ issueId:'ISS-'+String(DB.issueHistory.length+1).padStart(6,'0'), workOrderNo:'', itemCode:item.itemCode, itemName:item.itemName, issueQty:qty, sourceLocationId:item.locationId, maker, dueDate:'', issueDate:today, createdAt:now });
+    saveDB(); closeModal(); showToast('✓ 出庫登録完了','success'); renderIssueList();
+  };
+}
+
+// ════════════════════════════════════════════
+// INVENTORY（在庫一覧）
+// ════════════════════════════════════════════
+function filterInv(val, el) {
+  invFilter = val;
+  document.querySelectorAll('#inv-filter-chips .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderInventory();
+}
+
+function renderInventory() {
+  const q = document.getElementById('inv-search').value.trim().toLowerCase();
+  const today = new Date();
+  const thresh90 = new Date(today - 90 * 86400000).toISOString().split('T')[0];
+
+  let items = DB.inventory.filter(i => i.currentQty > 0 || invFilter === 'zero');
+  if (q) items = items.filter(i =>
+    i.supplyItemCode.toLowerCase().includes(q) ||
+    i.itemCode.toLowerCase().includes(q) ||
+    (i.itemName || '').toLowerCase().includes(q)
+  );
+  if (invFilter === 'shortage') items = items.filter(i => i.currentQty > 0 && i.currentQty < 10);
+  if (invFilter === 'zero') items = items.filter(i => i.currentQty === 0);
+  if (invFilter === 'long') items = items.filter(i => i.lastReceiptDate && i.lastReceiptDate < thresh90);
+
+  document.getElementById('inv-count').textContent = items.length + '品目';
+  const el = document.getElementById('inventory-list');
+
+  if (items.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="icon">📦</div><div>在庫データがありません<br><small>入庫登録を行うと表示されます</small></div></div>';
+    return;
+  }
+
+  el.innerHTML = items.map(i => {
+    const isLong = i.lastReceiptDate && i.lastReceiptDate < thresh90;
+    let cls = isLong ? 'long-stock' : i.currentQty === 0 ? 'zero' : '';
+    return `<div class="list-item ${cls}" onclick='openInvModal(${JSON.stringify(i)})'>
+      <div class="item-top">
+        <div class="item-code">${i.supplyItemCode}</div>
+        <div class="item-qty" style="color:${i.currentQty===0?'var(--red)':'var(--text)'};">${i.currentQty}<span style="font-size:12px;color:var(--text-muted);">個</span></div>
+      </div>
+      <div class="item-name">${i.itemName || ''}</div>
+      <div class="item-meta">
+        <span class="tag tag-blue">📍 ${i.locationId}番</span>
+        ${i.itemCode !== i.supplyItemCode ? `<span class="tag tag-gray">${i.itemCode}</span>` : ''}
+        ${isLong ? '<span class="tag tag-yellow">🕐 長期在庫</span>' : ''}
+        ${i.lotNo ? `<span class="tag tag-gray">LOT: ${i.lotNo}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openInvModal(item) {
+  const receipts = DB.receiptHistory.filter(r => r.supplyItemCode === item.supplyItemCode).slice(-5).reverse();
+  const issues = DB.issueHistory.filter(i => i.itemCode === item.itemCode || i.itemCode === item.supplyItemCode).slice(-5).reverse();
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="modal-title">在庫詳細</div>
+    <div class="result-card success" style="margin-bottom:14px;">
+      <div style="font-weight:700;font-family:monospace;font-size:15px;">${item.supplyItemCode}</div>
+      <div style="font-size:13px;color:var(--text-muted);">${item.itemName}</div>
+      <div style="margin-top:8px;display:flex;gap:20px;">
+        <div><div class="result-label">在庫数</div><div class="result-value big">${item.currentQty}</div></div>
+        <div><div class="result-label">ロケーション</div><div class="result-value">${item.locationId}番</div></div>
+        <div><div class="result-label">LOT</div><div class="result-value" style="font-size:13px;">${item.lotNo || '-'}</div></div>
+      </div>
+    </div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-muted);">入庫履歴（直近5件）</div>
+    ${receipts.length === 0 ? '<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">なし</div>' :
+      receipts.map(r => `<div class="history-item"><div><div style="font-size:13px;">${r.receiptDate}</div><div style="font-size:11px;color:var(--text-muted);">LOC:${r.locationId}番</div></div><div style="font-size:16px;font-weight:700;color:var(--green);">+${r.receiptQty}</div></div>`).join('')}
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-muted);">出庫履歴（直近5件）</div>
+    ${issues.length === 0 ? '<div style="font-size:13px;color:var(--text-muted);">なし</div>' :
+      issues.map(i => `<div class="history-item"><div><div style="font-size:13px;">${i.issueDate}</div><div style="font-size:11px;color:var(--text-muted);">${i.maker || ''}</div></div><div style="font-size:16px;font-weight:700;color:var(--orange);">-${i.issueQty}</div></div>`).join('')}
+    <button class="btn btn-outline" onclick="closeModal()" style="margin-top:16px;">閉じる</button>
+  `;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+
+// ════════════════════════════════════════════
+// IMPORT（データ取込）
+// ════════════════════════════════════════════
+function triggerUpload(id) { document.getElementById(id).click(); }
+
+function importReceiptOrders(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      DB.receiptOrders = rows.map(r => ({
+        OrderNo: String(r.OrderNo || ''),
+        ItemNo: String(r.ItemNo || ''),
+        ItemName: String(r.ItemName || ''),
+        OrderNum: parseInt(r.OrderNum) || 0,
+        DeliveryDate: String(r.DeliveryDate || '').split(' ')[0],
+        HomeID: String(r.HomeID || ''),
+        SupplyFromName: String(r.SupplyFromName || ''),
+      }));
+      saveDB();
+      document.getElementById('import-receipt-orders-result').textContent = '✓ ' + DB.receiptOrders.length + '件取込完了';
+      showToast('受入指示 ' + DB.receiptOrders.length + '件を取込みました', 'success');
+    } catch(e) {
+      document.getElementById('import-receipt-orders-result').textContent = 'エラー: ' + e.message;
+    }
+  };
+  reader.readAsBinaryString(file);
+  input.value = '';
+}
+
+function importWorkOrders(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  let total = 0;
+  let done = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'binary' });
+        // ファイル名からメーカー・日付を抽出
+        const fname = file.name.replace('.xlsx','').replace('.xls','');
+        const makerMatch = fname.match(/[ぁ-ん一-龠ァ-ヶA-Za-z]+$/);
+        const maker = makerMatch ? makerMatch[0] : '';
+        const dateMatch = fname.match(/(\d+)_(\d+)/);
+        let dueDate = '';
+        if (dateMatch) {
+          const year = new Date().getFullYear();
+          dueDate = `${year}/${dateMatch[1].padStart(2,'0')}/${dateMatch[2].padStart(2,'0')}`;
+        }
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        rows.forEach(r => {
+          const wno = String(r['作業指示No'] || '');
+          if (!wno) return;
+          const idx = DB.workOrders.findIndex(w => w.WorkOrderNo === wno);
+          const obj = {
+            WorkOrderNo: wno,
+            ItemCode: String(r['品目'] || ''),
+            ItemName: String(r['品名'] || ''),
+            OrderQty: parseInt(r['数量']) || 0,
+            DueDate: dueDate,
+            Maker: maker,
+            LotNo: String(r['ロット'] || ''),
+          };
+          if (idx >= 0) DB.workOrders[idx] = obj;
+          else DB.workOrders.push(obj);
+          total++;
+        });
+        done++;
+        if (done === files.length) {
+          saveDB();
+          document.getElementById('import-work-orders-result').textContent = '✓ ' + total + '件取込完了（' + files.length + 'ファイル）';
+          showToast('作業依頼書 ' + total + '件を取込みました', 'success');
+          renderIssueList();
+        }
+      } catch(e) {
+        document.getElementById('import-work-orders-result').textContent = 'エラー: ' + e.message;
+      }
+    };
+    reader.readAsBinaryString(file);
+  });
+  input.value = '';
+}
+
+function importMaster(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1 });
+      // 2行ヘッダー構造に対応
+      if (rows.length < 3) throw new Error('データが少なすぎます');
+      const h1 = rows[0], h2 = rows[1];
+      DB.masterItems = [];
+      for (let i = 2; i < rows.length; i++) {
+        const r = rows[i];
+        const item = {
+          itemCode: String(r[1] || ''),
+          customerItemCode: String(r[0] || ''),
+          itemName: String(r[2] || ''),
+          destination: String(r[9] || ''),
+          supplyItems: [],
+        };
+        // 支給品目1〜14（列14〜77付近、5列ごと）
+        for (let j = 0; j < 14; j++) {
+          const base = 14 + j * 5;
+          if (r[base]) item.supplyItems.push({ code: String(r[base]), qty: parseInt(r[base+3]) || 1 });
+        }
+        if (item.itemCode) DB.masterItems.push(item);
+      }
+      saveDB();
+      document.getElementById('import-master-result').textContent = '✓ ' + DB.masterItems.length + '品目取込完了';
+      showToast('基幹マスタ ' + DB.masterItems.length + '品目を取込みました', 'success');
+    } catch(e) {
+      document.getElementById('import-master-result').textContent = 'エラー: ' + e.message;
+    }
+  };
+  reader.readAsBinaryString(file);
+  input.value = '';
+}
+
+function getMasterItemCode(supplyCode) {
+  const m = DB.masterItems.find(m => m.supplyItems.some(s => s.code === supplyCode));
+  return m ? m.itemCode : null;
+}
+
+// ════════════════════════════════════════════
+// MANAGE（管理）
+// ════════════════════════════════════════════
+function renderDashboard() {
+  const today = new Date().toISOString().split('T')[0];
+  const thresh90 = new Date(Date.now() - 90*86400000).toISOString().split('T')[0];
+  const todayReceipts = DB.receiptHistory.filter(r => r.receiptDate === today).length;
+  const todayIssues = DB.issueHistory.filter(i => i.issueDate === today).length;
+  const totalItems = DB.inventory.filter(i => i.currentQty > 0).length;
+  const longStock = DB.inventory.filter(i => i.lastReceiptDate && i.lastReceiptDate < thresh90).length;
+
+  document.getElementById('dashboard-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-num" style="color:var(--green);">${todayReceipts}</div><div class="stat-label">本日入庫</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--blue);">${todayIssues}</div><div class="stat-label">本日出庫</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--text);">${totalItems}</div><div class="stat-label">在庫品目数</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--yellow);">${longStock}</div><div class="stat-label">長期在庫</div></div>
+  `;
+}
+
+function adjustSearch() {
+  const q = document.getElementById('adjust-search').value.trim();
+  if (!q) { document.getElementById('adjust-search-results').innerHTML = ''; return; }
+  const results = DB.inventory.filter(i => i.supplyItemCode.includes(q) || i.itemCode.includes(q)).slice(0,5);
+  document.getElementById('adjust-search-results').innerHTML = results.map(i =>
+    `<div class="list-item" style="padding:8px 12px;" onclick="selectAdjustItem(${JSON.stringify(i)})">
+      <div style="font-size:13px;font-weight:700;">${i.supplyItemCode}</div>
+      <div style="font-size:11px;color:var(--text-muted);">${i.itemName} / 在庫${i.currentQty}個 / ${i.locationId}番</div>
+    </div>`
+  ).join('');
+}
+
+function selectAdjustItem(item) {
+  adjustTarget = item;
+  document.getElementById('adjust-search').value = item.supplyItemCode;
+  document.getElementById('adjust-search-results').innerHTML = '';
+  document.getElementById('adjust-current').value = item.currentQty + '個（ロケーション' + item.locationId + '番）';
+  document.getElementById('adjust-new-qty').value = item.currentQty;
+  document.getElementById('adjust-form').style.display = 'block';
+}
+
+function submitAdjust() {
+  if (!adjustTarget) return;
+  const newQty = parseInt(document.getElementById('adjust-new-qty').value);
+  if (isNaN(newQty) || newQty < 0) { showToast('正しい数量を入力してください', 'error'); return; }
+  const reason = document.getElementById('adjust-reason').value;
+  const inv = DB.inventory.find(i => i.invId === adjustTarget.invId);
+  if (!inv) return;
+  const oldQty = inv.currentQty;
+  inv.currentQty = newQty;
+  inv.updatedAt = new Date().toISOString();
+  DB.adjustHistory.push({
+    itemCode: inv.supplyItemCode, oldQty, newQty, reason,
+    locationId: inv.locationId, date: new Date().toISOString().split('T')[0],
+    createdAt: new Date().toISOString(),
+  });
+  saveDB();
+  showToast(`調整完了: ${oldQty}個 → ${newQty}個`, 'success');
+  adjustTarget = null;
+  document.getElementById('adjust-form').style.display = 'none';
+  document.getElementById('adjust-search').value = '';
+  renderDashboard();
+}
+
+function submitMove() {
+  const code = document.getElementById('move-item').value.trim();
+  const from = parseInt(document.getElementById('move-from').value);
+  const to = parseInt(document.getElementById('move-to').value);
+  const qty = parseInt(document.getElementById('move-qty').value);
+  if (!code || !from || !to || !qty) { showToast('全項目を入力してください', 'error'); return; }
+  const src = DB.inventory.find(i => (i.supplyItemCode === code || i.itemCode === code) && i.locationId === from);
+  if (!src) { showToast('移動元在庫が見つかりません', 'error'); return; }
+  if (src.currentQty < qty) { showToast(`在庫不足（現在庫: ${src.currentQty}個）`, 'error'); return; }
+  src.currentQty -= qty;
+  const dst = DB.inventory.find(i => (i.supplyItemCode === code || i.itemCode === code) && i.locationId === to);
+  if (dst) { dst.currentQty += qty; dst.updatedAt = new Date().toISOString(); }
+  else {
+    DB.inventory.push({ ...src, invId: 'INV-' + String(DB.inventory.length+1).padStart(6,'0'),
+      currentQty: qty, locationId: to, updatedAt: new Date().toISOString() });
+  }
+  src.updatedAt = new Date().toISOString();
+  saveDB();
+  showToast(`${code} : ${from}番 → ${to}番 ${qty}個移動完了`, 'success');
+  ['move-item','move-from','move-to','move-qty'].forEach(id => document.getElementById(id).value = '');
+}
+
+function exportData() {
+  const json = JSON.stringify(DB, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'wms_backup_' + new Date().toISOString().split('T')[0] + '.json';
+  a.click();
+}
+
+function importData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const d = JSON.parse(e.target.result);
+      Object.assign(DB, d);
+      saveDB();
+      showToast('データを復元しました', 'success');
+      updateReceiptCount();
+      renderReceiptHistory();
+      renderInventory();
+      renderDashboard();
+    } catch(e) { showToast('インポートエラー: ' + e.message, 'error'); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function confirmClearAll() {
+  if (confirm('全データを削除します。この操作は取り消せません。よろしいですか？')) {
+    Object.assign(DB, { receiptOrders:[], workOrders:[], masterItems:[], inventory:[], receiptHistory:[], issueHistory:[], adjustHistory:[] });
+    saveDB(); showToast('全データを削除しました', 'error');
+    renderInventory(); renderIssueList(); updateReceiptCount(); renderReceiptHistory(); renderDashboard();
+  }
+}
+
+// ════════════════════════════════════════════
+// MODAL
+// ════════════════════════════════════════════
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('active');
+}
+
+// ════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════
+let toastTimer;
+function showToast(msg, type='') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = '', 2500);
+}
+
+// ════════════════════════════════════════════
+// UTIL
+// ════════════════════════════════════════════
+const HOME_LABELS = { '10':'アイシンKD','79':'輸出','80':'ホンダ・スズキ','81':'ホンダ未シール','82':'スズキKD','83':'スズキKD','84':'トヨタ','85':'日産','86':'ダイハツ','87':'ミツビシ・KD','89':'輸出' };
+function getHomeLabel(id) { return HOME_LABELS[String(id)] || id; }
+
+// ════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════
+loadDB();
+updateReceiptCount();
+renderReceiptHistory();
+renderLocGrid('loc-grid-receipt');
+</script>
+</body>
+</html>
