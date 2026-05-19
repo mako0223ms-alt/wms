@@ -1,0 +1,2426 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate">
+<title id="page-title">在庫管理 - 早津工業社</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ─── RESET & BASE ─── */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+:root{
+  --bg:      #0f1117;
+  --surface: #1a1d2e;
+  --surface2:#232640;
+  --border:  #2e3354;
+  --text:    #e8eaf6;
+  --text2:   #9fa8da;
+  --text3:   #5c6bc0;
+  --blue:    #3f51b5;
+  --blue2:   #7986cb;
+  --green:   #1b5e20;
+  --green2:  #66bb6a;
+  --orange:  #e65100;
+  --orange2: #ffa726;
+  --red:     #b71c1c;
+  --red2:    #ef5350;
+  --purple:  #4a148c;
+  --purple2: #ab47bc;
+  --cyan:    #006064;
+  --cyan2:   #26c6da;
+  --rad:     10px;
+}
+body{background:var(--bg);color:var(--text);font-family:'Hiragino Sans','Meiryo',sans-serif;
+  min-height:100vh;overflow-x:hidden;}
+
+/* ─── LANG BAR ─── */
+#lang-bar{position:fixed;top:0;left:0;right:0;height:36px;background:rgba(15,17,23,.97);
+  border-bottom:1px solid var(--border);z-index:200;display:flex;align-items:center;
+  justify-content:flex-end;padding:0 12px;gap:6px;}
+.lang-btn{background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);
+  padding:4px 10px;border-radius:16px;font-size:11px;font-weight:700;cursor:pointer;}
+.lang-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+
+/* ─── SCREENS ─── */
+.screen{display:none;position:fixed;top:36px;left:0;right:0;bottom:56px;
+  overflow-y:auto;padding:12px 12px 8px;}
+.screen.active{display:block;}
+
+/* ─── SCREEN HEADER ─── */
+.screen-header{display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:12px;}
+.screen-title{font-size:18px;font-weight:800;letter-spacing:.5px;}
+.badge{padding:4px 10px;border-radius:16px;font-size:12px;font-weight:700;
+  background:var(--blue);color:#fff;}
+.badge-green{background:var(--green);color:var(--green2);}
+.badge-red{background:var(--red);color:var(--red2);}
+
+/* ─── TABS ─── */
+#tabs{position:fixed;bottom:0;left:0;right:0;height:56px;background:rgba(15,17,23,.98);
+  border-top:1px solid var(--border);display:flex;z-index:200;}
+.tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;border:none;background:none;color:var(--text3);cursor:pointer;padding:0;
+  font-size:10px;font-weight:700;transition:color .15s;}
+.tab-btn.active{color:var(--blue2);}
+.tab-btn span:first-child{font-size:20px;line-height:1;}
+
+/* ─── SCAN AREA ─── */
+.scan-area{background:rgba(63,81,181,.12);border:2px solid var(--blue);
+  border-radius:var(--rad);padding:12px;margin-bottom:10px;}
+.scan-area.green{background:rgba(27,94,32,.15);border-color:var(--green2);}
+.scan-active-label{font-size:13px;font-weight:700;color:var(--blue2);margin-bottom:4px;}
+.scan-active-label.green{color:var(--green2);}
+.scan-hint{font-size:11px;color:var(--text3);}
+.scan-hidden-input{opacity:0;position:absolute;width:1px;height:1px;}
+.scan-badge{background:var(--blue);color:#fff;border-radius:12px;padding:3px 8px;
+  font-size:10px;font-weight:700;}
+
+/* ─── CARD / LIST ITEM ─── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rad);
+  padding:12px;margin-bottom:8px;}
+.card.success{border-color:var(--green2);}
+.card.error{border-color:var(--red2);}
+.card.warning{border-color:var(--orange2);}
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.result-label{font-size:10px;color:var(--text3);margin-bottom:2px;font-weight:700;}
+.result-value{font-size:15px;font-weight:800;}
+.result-value.big{font-size:22px;}
+.result-value.mono{font-family:monospace;font-size:13px;}
+.card-label{font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px;
+  text-transform:uppercase;letter-spacing:.5px;}
+
+/* ─── LIST ITEM ─── */
+.list-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--rad);
+  padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:border-color .15s;}
+.list-item:active{border-color:var(--blue2);}
+.list-item.done{opacity:.45;}
+.list-item.urgent{border-left:3px solid var(--red2);}
+.item-code{font-size:12px;font-weight:700;color:var(--blue2);font-family:monospace;}
+.item-name{font-size:12px;color:var(--text2);margin:2px 0;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;}
+.item-qty{font-size:20px;font-weight:800;}
+.item-qty.ok{color:var(--green2);}
+.item-qty.ng{color:var(--red2);}
+.item-qty-unit{font-size:11px;color:var(--text3);}
+
+/* ─── TAGS ─── */
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;}
+.tag{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;}
+.tag-blue{background:rgba(63,81,181,.25);color:var(--blue2);}
+.tag-green{background:rgba(27,94,32,.35);color:var(--green2);}
+.tag-orange{background:rgba(230,81,0,.25);color:var(--orange2);}
+.tag-red{background:rgba(183,28,28,.3);color:var(--red2);}
+.tag-purple{background:rgba(74,20,140,.3);color:var(--purple2);}
+.tag-cyan{background:rgba(0,96,100,.3);color:var(--cyan2);}
+.tag-gray{background:rgba(100,100,120,.3);color:var(--text2);}
+
+/* ─── CHIPS ─── */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+.chip{padding:5px 12px;border-radius:16px;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text2);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.chip.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+
+/* ─── FORM ─── */
+.label{font-size:11px;font-weight:700;color:var(--text3);margin-bottom:4px;display:block;}
+.input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  color:var(--text);padding:10px 12px;font-size:14px;outline:none;font-family:inherit;}
+.input:focus{border-color:var(--blue2);}
+.form-group{margin-bottom:10px;}
+.search-wrap{position:relative;margin-bottom:10px;}
+.search-wrap .si{position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  color:var(--text3);font-size:14px;}
+.search-wrap .input{padding-left:30px;}
+select.input{cursor:pointer;}
+
+/* ─── BUTTONS ─── */
+.btn{width:100%;padding:12px;border-radius:8px;border:none;font-size:14px;font-weight:700;
+  cursor:pointer;font-family:inherit;transition:opacity .1s;}
+.btn:active{opacity:.8;}
+.btn-primary{background:var(--blue);color:#fff;}
+.btn-success{background:var(--green);color:var(--green2);}
+.btn-danger{background:var(--red);color:var(--red2);}
+.btn-outline{background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);}
+.btn-sm{padding:8px;font-size:12px;}
+
+/* ─── PROGRESS BAR ─── */
+.prog-wrap{background:var(--surface2);border-radius:4px;height:8px;overflow:hidden;margin:6px 0;}
+.prog-bar{height:100%;border-radius:4px;background:var(--blue2);transition:width .3s;}
+.prog-bar.green{background:var(--green2);}
+.prog-bar.orange{background:var(--orange2);}
+
+/* ─── STAT CARD ─── */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rad);
+  padding:12px;text-align:center;}
+.stat-num{font-size:28px;font-weight:800;}
+.stat-sub{font-size:11px;color:var(--text3);}
+.stat-label{font-size:11px;color:var(--text3);margin-top:2px;}
+
+/* ─── MODAL ─── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);
+  z-index:300;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.open{display:flex;}
+.modal-box{background:var(--surface);border-radius:12px;padding:20px;
+  width:100%;max-width:420px;max-height:80vh;overflow-y:auto;}
+.modal-title{font-size:15px;font-weight:800;margin-bottom:12px;}
+
+/* ─── TOAST ─── */
+#toast{position:fixed;bottom:72px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  padding:8px 16px;font-size:13px;font-weight:700;white-space:nowrap;
+  z-index:400;opacity:0;transition:all .25s;pointer-events:none;max-width:90vw;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#toast.success{border-color:var(--green2);color:var(--green2);}
+#toast.error{border-color:var(--red2);color:var(--red2);}
+#toast.info{border-color:var(--blue2);color:var(--blue2);}
+#toast.warning{border-color:var(--orange2);color:var(--orange2);}
+
+/* ─── PICKING PANEL ─── */
+#picking-panel{background:var(--surface2);border:2px solid var(--blue);
+  border-radius:var(--rad);padding:12px;margin-bottom:8px;display:none;}
+.pick-count{font-size:28px;font-weight:800;text-align:center;margin:8px 0;}
+.pick-count .slash{font-size:16px;color:var(--text3);}
+
+/* ─── HISTORY ROW ─── */
+.hist-row{display:flex;justify-content:space-between;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--border);}
+.hist-row:last-child{border-bottom:none;}
+.hist-code{font-size:12px;font-weight:700;font-family:monospace;color:var(--blue2);}
+.hist-name{font-size:11px;color:var(--text3);}
+.hist-right{text-align:right;}
+.hist-qty{font-size:14px;font-weight:800;}
+.hist-loc{font-size:11px;color:var(--cyan2);}
+.hist-date{font-size:10px;color:var(--text3);}
+</style>
+</head>
+<body>
+
+<!-- 言語バー -->
+<div id="lang-bar">
+  <button onclick="setLang('ja')" id="lang-ja" class="lang-btn active">🇯🇵 日本語</button>
+  <button onclick="setLang('pt')" id="lang-pt" class="lang-btn">🇧🇷 PT</button>
+  <button onclick="setLang('tl')" id="lang-tl" class="lang-btn">🇵🇭 FIL</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+  受入タブ
+══════════════════════════════════════════════════════════ -->
+<div id="screen-receipt" class="screen active">
+  <div class="screen-header">
+    <span class="screen-title" id="t-receipt-title">📦 受入登録</span>
+    <span class="badge badge-green" id="receipt-count">今日 0件</span>
+  </div>
+
+  <!-- スキャン待機 -->
+  <div class="scan-area" id="receipt-scan-area">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <div class="scan-active-label" id="t-receipt-scan-label">📡 スキャン待機中</div>
+      <input id="scanner-receipt" class="scan-hidden-input" type="text" autocomplete="off" inputmode="none" lang="en">
+    </div>
+    <div class="scan-hint" id="t-receipt-scan-hint">現品票バーコードを読み込んでください</div>
+    <div style="margin-top:8px;display:grid;grid-template-columns:1fr auto;gap:6px;">
+      <button class="btn btn-outline btn-sm" onclick="showManualModal('receipt')" id="t-receipt-manual-btn">⌨ 手入力</button>
+      <button class="btn btn-outline btn-sm" onclick="cancelReceipt()" id="t-receipt-cancel-btn" style="display:none;">✕</button>
+    </div>
+  </div>
+
+  <!-- 登録結果 -->
+  <div id="receipt-result"></div>
+
+  <!-- 本日履歴 -->
+  <div class="card-label" id="t-receipt-history-label">本日の受入履歴</div>
+  <div id="receipt-history"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+  格納タブ
+══════════════════════════════════════════════════════════ -->
+<div id="screen-store" class="screen">
+  <div class="screen-header">
+    <span class="screen-title" id="t-store-title">🗂 格納登録</span>
+    <span class="badge badge-green" id="store-count">今日 0件</span>
+  </div>
+
+  <!-- STEP1: 現品票スキャン -->
+  <div id="store-step1">
+    <div class="scan-area" id="store-item-scan-area">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <div class="scan-active-label" id="t-store-scan-label">📡 スキャン待機中</div>
+        <input id="scanner-store" class="scan-hidden-input" type="text" autocomplete="off" inputmode="none" lang="en">
+      </div>
+      <div class="scan-hint" id="t-store-scan-hint">現品票バーコードを読み込んでください</div>
+      <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="showManualModal('store')" id="t-store-manual-btn">⌨ 手入力</button>
+    </div>
+  </div>
+
+  <!-- STEP2: 棚番スキャン -->
+  <div id="store-step2" style="display:none;">
+    <div id="store-item-card"></div>
+    <div class="form-group">
+      <label class="label" id="t-store-qty-label">格納数量（変更時のみ入力）</label>
+      <input class="input" type="number" id="store-qty" style="font-size:22px;font-weight:800;text-align:center;color:var(--blue2);">
+    </div>
+    <div class="scan-area green">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <div class="scan-active-label green" id="t-store-loc-label">📡 棚番スキャン → 即格納</div>
+        <input id="scanner-store-loc" class="scan-hidden-input" type="text" autocomplete="off" inputmode="none" lang="en">
+      </div>
+      <div class="scan-hint" id="t-store-loc-hint">棚番バーコードを読み込んでください（例: CMD:LOC:12）</div>
+      <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="resetStore()" id="t-store-back-btn">← 戻る</button>
+    </div>
+  </div>
+
+  <div class="card-label" style="margin-top:8px;" id="t-store-history-label">本日の格納履歴</div>
+  <div id="store-history"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+  出庫タブ
+══════════════════════════════════════════════════════════ -->
+<div id="screen-issue" class="screen">
+  <div class="screen-header">
+    <span class="screen-title" id="t-issue-title">📤 出庫作業</span>
+    <span class="badge badge-red" id="issue-count">未完了 0件</span>
+  </div>
+
+  <!-- スキャン待機 -->
+  <div class="scan-area" id="issue-scan-area">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="scan-active-label" id="t-issue-scan-label">📡 スキャン待機中</div>
+        <input id="scanner-issue" class="scan-hidden-input" type="text" autocomplete="off" inputmode="none" lang="en">
+        <span class="scan-badge" id="issue-scan-badge" style="display:none;">待機中</span>
+      </div>
+      <button class="btn btn-outline btn-sm" style="width:auto;padding:4px 8px;" onclick="showManualModal('issue')" id="t-issue-manual-btn">⌨ 手入力</button>
+    </div>
+    <div class="scan-hint" id="t-issue-scan-hint">作業依頼書の品目バーコードを読み込んでください</div>
+    <!-- 日付セレクタ -->
+    <div style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+      <span class="scan-hint" style="white-space:nowrap;" id="t-issue-date-label">出庫予定日：</span>
+      <select class="input" id="issue-date-select" onchange="renderIssueList()" style="flex:1;font-size:13px;padding:6px 10px;"></select>
+    </div>
+  </div>
+
+  <!-- メーカーフィルター -->
+  <div class="chips" id="issue-maker-chips">
+    <div class="chip active" onclick="filterIssueMaker('all',this)" id="t-maker-all">すべて</div>
+    <div class="chip" onclick="filterIssueMaker('ホンダ',this)">ホンダ</div>
+    <div class="chip" onclick="filterIssueMaker('スズキ',this)">スズキ</div>
+    <div class="chip" onclick="filterIssueMaker('トヨタ',this)">トヨタ</div>
+    <div class="chip" onclick="filterIssueMaker('ニッサン',this)">ニッサン</div>
+    <div class="chip" onclick="filterIssueMaker('ダイハツ',this)">ダイハツ</div>
+    <div class="chip" onclick="filterIssueMaker('ミツビシ',this)">ミツビシ</div>
+    <div class="chip" onclick="filterIssueMaker('その他',this)" id="t-maker-other">その他</div>
+  </div>
+
+  <!-- ポカヨケパネル -->
+  <div id="picking-panel">
+    <div id="picking-info-card"></div>
+    <div class="pick-count">
+      <span id="pick-scanned">0</span><span class="slash"> / </span><span id="pick-needed">0</span>
+      <span style="font-size:12px;color:var(--text3);margin-left:4px;" id="t-pick-unit">個</span>
+    </div>
+    <div class="prog-wrap"><div class="prog-bar" id="pick-progress" style="width:0%"></div></div>
+    <div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:8px;" id="t-pick-scan-hint">現品票バーコードをスキャン（ポカヨケ）</div>
+    <!-- ポカヨケ用スキャナー -->
+    <input id="scanner-picking" class="scan-hidden-input" type="text" autocomplete="off" inputmode="none" lang="en">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+      <button class="btn btn-success btn-sm" onclick="execIssue()" id="t-issue-complete-btn">✓ 出庫完了</button>
+      <button class="btn btn-danger btn-sm" onclick="cancelPicking()" id="t-issue-cancel-btn">✕ 中断</button>
+    </div>
+  </div>
+
+  <!-- 依頼書一覧 -->
+  <div id="issue-list"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+  在庫タブ
+══════════════════════════════════════════════════════════ -->
+<div id="screen-inventory" class="screen">
+  <div class="screen-header">
+    <span class="screen-title" id="t-inv-title">📋 在庫一覧</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button onclick="openDefectModal()" style="background:var(--red);color:var(--red2);border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;">🔴 仕損品登録</button>
+      <span class="badge" id="inv-count">0品目</span>
+    </div>
+  </div>
+
+  <div class="search-wrap">
+    <span class="si">🔍</span>
+    <input class="input" id="inv-search" placeholder="品番・品名で検索" oninput="renderInventory()">
+  </div>
+
+  <!-- スキャン検索ボタン -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+    <button class="btn btn-outline btn-sm" onclick="activateInvScan('item')" id="t-inv-scan-item-btn">📡 現品票スキャン</button>
+    <button class="btn btn-outline btn-sm" onclick="activateInvScan('loc')"  id="t-inv-scan-loc-btn">📡 棚番スキャン</button>
+  </div>
+  <button onclick="openDefectList()" style="width:100%;background:none;border:1px solid var(--red);color:var(--red2);border-radius:8px;padding:6px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;">📋 仕損品一覧を見る</button>
+  <div class="scan-area" id="inv-scan-area" style="display:none;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <div class="scan-active-label" id="inv-scan-label">📡 スキャン待機中...</div>
+      <input id="scanner-inv" class="scan-hidden-input" type="text" autocomplete="off" inputmode="none" lang="en">
+    </div>
+    <div class="scan-hint" id="inv-scan-hint"></div>
+    <button class="btn btn-outline btn-sm" style="margin-top:6px;" onclick="deactivateInvScan()" id="t-inv-scan-cancel">✕ キャンセル</button>
+  </div>
+  <div id="inv-scan-result"></div>
+
+  <!-- フィルター -->
+  <div class="chips">
+    <div class="chip active" onclick="filterInv('all',this)"       id="t-inv-all">すべて</div>
+    <div class="chip"        onclick="filterInv('honda',this)">ホンダ</div>
+    <div class="chip"        onclick="filterInv('suzuki',this)">スズキ</div>
+    <div class="chip"        onclick="filterInv('toyota',this)">トヨタ</div>
+    <div class="chip"        onclick="filterInv('nissan',this)">ニッサン</div>
+    <div class="chip"        onclick="filterInv('daihatsu',this)">ダイハツ</div>
+    <div class="chip"        onclick="filterInv('mitsubishi',this)">ミツビシ</div>
+    <div class="chip"        onclick="filterInv('other',this)"     id="t-inv-other">その他</div>
+    <div class="chip"        onclick="filterInv('zero',this)"      id="t-inv-zero">在庫ゼロ</div>
+    <div class="chip"        onclick="filterInv('mid',this)"       id="t-inv-mid">🕐 中期</div>
+    <div class="chip"        onclick="filterInv('long',this)"      id="t-inv-long">⚠ 長期</div>
+    <div class="chip"        onclick="filterInv('unstored',this)"  id="t-inv-unstored">📍 未格納</div>
+  </div>
+  <div id="inv-list"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+  進捗タブ
+══════════════════════════════════════════════════════════ -->
+<div id="screen-dashboard" class="screen">
+  <div class="screen-header">
+    <span class="screen-title" id="t-dash-title">📊 出庫状況</span>
+    <span style="font-size:11px;color:var(--text3);" id="dash-updated"></span>
+  </div>
+  <div class="stat-grid" id="dash-stats"></div>
+  <div class="card">
+    <div class="card-label" id="t-dash-maker-label">メーカー別出庫進捗</div>
+    <div id="dash-maker-chart"></div>
+  </div>
+  <div class="card" style="margin-top:8px;">
+    <div class="card-label" id="t-dash-daily-label">日別出庫状況</div>
+    <div id="dash-daily-chart"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+  管理タブ
+══════════════════════════════════════════════════════════ -->
+<div id="screen-manage" class="screen">
+  <div class="screen-header">
+    <span class="screen-title" id="t-manage-title">⚙️ 管理</span>
+    <button onclick="openGasModal()" style="background:rgba(16,185,129,.2);border:1px solid var(--green2);color:var(--green2);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;" id="gas-status-btn">☁️ スプレッドシート連携</button>
+  </div>
+
+  <!-- データ取込 -->
+  <div class="card" style="margin-bottom:8px;">
+    <div class="card-label" id="t-manage-import-label">データ取込</div>
+    <div class="form-group">
+      <label class="label" id="t-manage-receipt-label">受入指示 XLS</label>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;" id="t-manage-receipt-hint">受入指示一覧表.xls</div>
+      <label class="btn btn-outline btn-sm" style="text-align:center;cursor:pointer;">
+        📂 ファイルを選択<input type="file" accept=".xls,.xlsx" style="display:none;" onchange="importReceiptOrders(this)">
+      </label>
+    </div>
+    <div class="form-group">
+      <label class="label" id="t-manage-work-label">作業依頼書 XLSX（複数可）</label>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;" id="t-manage-work-hint">5_14ホンダ.xlsx など</div>
+      <label class="btn btn-outline btn-sm" style="text-align:center;cursor:pointer;">
+        📂 ファイルを選択<input type="file" accept=".xlsx" multiple style="display:none;" onchange="importWorkOrders(this)">
+      </label>
+    </div>
+    <div class="form-group">
+      <label class="label" id="t-manage-master-label">基幹マスタ XLSX</label>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;" id="t-manage-master-hint">基幹データ_統合マスタ.xlsx</div>
+      <label class="btn btn-outline btn-sm" style="text-align:center;cursor:pointer;">
+        📂 ファイルを選択<input type="file" accept=".xlsx" style="display:none;" onchange="importMaster(this)">
+      </label>
+    </div>
+  </div>
+
+  <!-- レポート出力 -->
+  <div class="card" style="margin-bottom:8px;">
+    <div class="card-label" id="t-manage-report-label">在庫レポート出力（ROKI報告用）</div>
+    <button class="btn btn-outline" style="margin-bottom:6px;" onclick="exportLongStock()" id="t-manage-export-long-btn">📊 中期・長期在庫 Excelダウンロード</button>
+    <button class="btn btn-outline" onclick="exportAllStock()" id="t-manage-export-all-btn">📋 全在庫 Excelダウンロード</button>
+  </div>
+
+  <!-- 在庫調整 -->
+  <div class="card" style="margin-bottom:8px;">
+    <div class="card-label" id="t-manage-adj-label">在庫調整</div>
+    <div class="form-group">
+      <input class="input" id="adj-search-input" placeholder="品番を入力" oninput="adjSearch(this.value)">
+    </div>
+    <div id="adj-search-result"></div>
+    <div id="adj-form" style="display:none;">
+      <div class="form-group">
+        <label class="label" id="t-adj-current-label">現在庫数</label>
+        <div class="input" id="adj-current-qty" style="color:var(--text3);"></div>
+      </div>
+      <div class="form-group">
+        <label class="label" id="t-adj-new-label">調整後数量</label>
+        <input class="input" type="number" id="adj-new-qty" min="0">
+      </div>
+      <div class="form-group">
+        <label class="label" id="t-adj-reason-label">理由</label>
+        <select class="input" id="adj-reason">
+          <option id="t-adj-r1">棚卸し差異</option>
+          <option id="t-adj-r2">現品票手書き変更</option>
+          <option id="t-adj-r3">入力誤り修正</option>
+          <option id="t-adj-r4">余り品戻し</option>
+          <option id="t-adj-r5">その他</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="submitAdj()" id="t-adj-submit-btn">調整を登録</button>
+    </div>
+  </div>
+
+  <!-- データ操作 -->
+  <div class="card">
+    <div class="card-label" id="t-manage-data-label">データ操作</div>
+    <button class="btn btn-outline" style="margin-bottom:6px;" onclick="exportData()" id="t-manage-export-json-btn">💾 JSONエクスポート（バックアップ）</button>
+    <label class="btn btn-outline" style="text-align:center;cursor:pointer;margin-bottom:6px;display:block;">
+      <span id="t-manage-import-json-btn">📂 JSONインポート（復元）</span>
+      <input type="file" accept=".json" style="display:none;" onchange="importData(this)">
+    </label>
+    <button class="btn btn-danger" onclick="confirmClear()" id="t-manage-clear-btn">🗑 全データ削除</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+  在庫詳細モーダル
+══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="inv-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="t-inv-modal-title">在庫詳細</div>
+    <div id="inv-modal-body"></div>
+    <button class="btn btn-outline" style="margin-top:12px;" onclick="closeModal('inv-modal')" id="t-inv-modal-close">閉じる</button>
+  </div>
+</div>
+
+<!-- 手入力モーダル -->
+<div class="modal-overlay" id="manual-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="manual-modal-title">品番を入力</div>
+    <input class="input" id="manual-input-field" type="text" placeholder="品番を入力またはバーコードスキャン"
+      style="font-size:16px;margin-bottom:12px;"
+      onkeydown="if(event.key==='Enter')submitManualInput()">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="btn btn-outline" onclick="closeModal('manual-modal')" id="t-manual-cancel">✕ キャンセル</button>
+      <button class="btn btn-primary" onclick="submitManualInput()" id="t-manual-submit">✓ 決定</button>
+    </div>
+  </div>
+</div>
+
+<!-- タブバー -->
+<div id="tabs">
+  <button class="tab-btn active" id="tab-receipt" onclick="showTab('receipt')">
+    <span>📦</span><span id="t-tab-receipt">受入</span>
+  </button>
+  <button class="tab-btn" id="tab-store" onclick="showTab('store')">
+    <span>🗂</span><span id="t-tab-store">格納</span>
+  </button>
+  <button class="tab-btn" id="tab-issue" onclick="showTab('issue')">
+    <span>📤</span><span id="t-tab-issue">出庫</span>
+  </button>
+  <button class="tab-btn" id="tab-inventory" onclick="showTab('inventory')">
+    <span>📋</span><span id="t-tab-inventory">在庫</span>
+  </button>
+  <button class="tab-btn" id="tab-dashboard" onclick="showTab('dashboard')">
+    <span>📊</span><span id="t-tab-dashboard">進捗</span>
+  </button>
+  <button class="tab-btn" id="tab-manage" onclick="showTab('manage')">
+    <span>⚙️</span><span id="t-tab-manage">管理</span>
+  </button>
+</div>
+
+<!-- トースト -->
+
+<!-- 仕損品登録モーダル -->
+<div class="modal-overlay" id="defect-modal">
+  <div class="modal-box" style="max-width:480px;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="modal-title" style="margin-bottom:0;">🔴 仕損品登録</div>
+      <button onclick="closeModal('defect-modal')" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:10px;">
+      <button class="btn btn-outline btn-sm" id="defect-scan-btn" onclick="activateDefectScan()">📡 現品票スキャン</button>
+      <button class="btn btn-outline btn-sm" onclick="openDefectManual()">⌨ 手入力</button>
+    </div>
+    <div id="defect-scan-area" style="display:none;background:rgba(63,81,181,.1);border:2px solid var(--blue);border-radius:8px;padding:10px;margin-bottom:10px;text-align:center;">
+      <div style="font-size:12px;font-weight:700;color:var(--blue2);margin-bottom:4px;">📡 スキャン待機中...</div>
+      <input id="scanner-defect" class="scan-hidden-input" type="text" autocomplete="off" inputmode="none" lang="en">
+      <div style="font-size:11px;color:var(--text3);">現品票バーコードを読み込んでください</div>
+      <button class="btn btn-outline btn-sm" style="margin-top:6px;width:auto;padding:4px 10px;" onclick="deactivateDefectScan()">✕ キャンセル</button>
+    </div>
+    <div style="background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px;">品番情報（スキャンで自動入力）</div>
+      <div class="form-group"><label class="label">部品番号</label><input class="input" id="defect-code" type="text" placeholder="品番を入力"></div>
+      <div class="form-group"><label class="label">部品名</label><input class="input" id="defect-name" type="text" placeholder="品名"></div>
+      <div class="form-group" style="margin-bottom:0;"><label class="label">支給メーカー</label><input class="input" id="defect-maker" type="text" placeholder="メーカー名"></div>
+    </div>
+    <div class="form-group"><label class="label">報告日</label><input class="input" id="defect-report-date" type="date"></div>
+    <div class="form-group">
+      <label class="label">報告者</label>
+      <select class="input" id="defect-reporter-select" onchange="onDefectReporterSelect(this.value)" style="margin-bottom:4px;"><option value="">-- 選択または手入力 --</option></select>
+      <input class="input" id="defect-reporter" type="text" placeholder="報告者名を入力">
+    </div>
+    <div class="form-group"><label class="label">包材記号</label><input class="input" id="defect-packing" type="text" placeholder="包材記号を入力"></div>
+    <div class="form-group">
+      <label class="label">事象</label>
+      <select class="input" id="defect-phenomenon" onchange="onDefectPhenomenon(this.value)">
+        <option value="">-- 選択してください --</option>
+        <option value="破損">破損</option>
+        <option value="支給時からの不良">支給時からの不良</option>
+        <option value="その他">その他（手入力）</option>
+      </select>
+      <input class="input" id="defect-phenomenon-other" type="text" placeholder="事象を入力" style="display:none;margin-top:4px;">
+    </div>
+    <div class="form-group">
+      <label class="label">事象発見状態</label>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">どんな容器・容器のどの位置など</div>
+      <textarea class="input" id="defect-situation" rows="2" placeholder="例：段ボール箱の底部にひび割れあり" style="resize:vertical;"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="label">得意先搬入日</label>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">依頼書記載の納入日を選択してください</div>
+      <input class="input" id="defect-delivery-date" type="date">
+    </div>
+    <div class="form-group"><label class="label">発生数量</label><input class="input" id="defect-qty" type="number" min="1" placeholder="0"></div>
+    <div class="form-group">
+      <label class="label">ROKIへの報告日 <span style="font-size:10px;color:var(--text3);font-weight:400;">（ROKI報告担当者のみ入力）</span></label>
+      <input class="input" id="defect-roki-date" type="date">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+      <button class="btn btn-outline" onclick="closeModal('defect-modal')">キャンセル</button>
+      <button class="btn btn-danger" onclick="submitDefect()" style="color:#fff;">🔴 登録する</button>
+    </div>
+  </div>
+</div>
+<!-- 仕損品一覧モーダル -->
+<div class="modal-overlay" id="defect-list-modal">
+  <div class="modal-box" style="max-width:520px;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="modal-title" style="margin-bottom:0;">📋 仕損品一覧</div>
+      <button onclick="closeModal('defect-list-modal')" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
+      <select class="input" id="defect-month-filter" onchange="renderDefectList()" style="flex:1;font-size:13px;padding:7px 10px;"></select>
+      <button class="btn btn-outline btn-sm" style="width:auto;padding:6px 10px;white-space:nowrap;" onclick="exportDefects()">📊 Excel</button>
+    </div>
+    <div id="defect-summary" style="background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:10px;"></div>
+    <div id="defect-list-body"></div>
+    <div id="defect-price-area" style="display:none;background:var(--surface2);border-radius:8px;padding:10px;margin-top:8px;">
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px;">💰 単価入力（仕損費集計用）</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px;" id="defect-price-target-label"></div>
+      <div style="display:flex;gap:6px;">
+        <input class="input" id="defect-price-input" type="number" min="0" placeholder="単価（円）" style="flex:1;">
+        <button class="btn btn-primary btn-sm" style="width:auto;padding:6px 12px;" onclick="saveDefectPrice()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- GAS設定モーダル -->
+<div class="modal-overlay" id="gas-modal">
+  <div class="modal-box" style="max-width:420px;">
+    <div class="modal-title">☁️ Googleスプレッドシート連携</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">GAS WebアプリのURLを設定すると、スキャンデータがGoogleスプレッドシートにリアルタイムで記録されます。</div>
+    <div class="form-group">
+      <label class="label">GAS Web App URL</label>
+      <input class="input" id="gas-url-input" type="url" placeholder="https://script.google.com/macros/s/..." style="font-size:12px;">
+    </div>
+    <div id="gas-status" style="font-size:12px;margin-bottom:10px;padding:6px;border-radius:6px;display:none;"></div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      <button class="btn btn-outline btn-sm" onclick="testGasConnection()" style="flex:1;">🔗 接続テスト</button>
+      <button class="btn btn-outline btn-sm" onclick="syncAllToGas()" style="flex:1;">📤 全データ同期</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="btn btn-outline" onclick="closeModal('gas-modal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveGasUrl()">✓ 保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+
+// ════════════════════════════════════════════════════════
+// I18N
+// ════════════════════════════════════════════════════════
+var I18N = {
+  ja: {
+    tab_receipt:'受入', tab_store:'格納', tab_issue:'出庫',
+    tab_inventory:'在庫', tab_dashboard:'進捗', tab_manage:'管理',
+    receipt_title:'📦 受入登録', store_title:'🗂 格納登録',
+    issue_title:'📤 出庫作業', inv_title:'📋 在庫一覧',
+    dash_title:'📊 出庫状況', manage_title:'⚙️ 管理',
+    scan_waiting:'📡 スキャン待機中',
+    receipt_scan_hint:'現品票バーコードを読み込んでください',
+    store_scan_hint:'現品票バーコードを読み込んでください',
+    store_loc_label:'📡 棚番スキャン → 即格納',
+    store_loc_hint:'棚番バーコードを読み込んでください（例: CMD:LOC:12）',
+    store_back_btn:'← 戻る',
+    issue_scan_hint:'作業依頼書の品目バーコードを読み込んでください',
+    issue_date_label:'納入日：',
+    manual_btn:'⌨ 手入力',
+    receipt_today:'今日 {n}件',
+    store_today:'今日 {n}件',
+    issue_pending:'未完了 {n}件',
+    inv_count:'{n}品目',
+    receipt_history_label:'本日の受入履歴',
+    store_history_label:'本日の格納履歴',
+    maker_all:'すべて', maker_other:'その他',
+    inv_all:'すべて', inv_other:'その他',
+    inv_zero:'在庫ゼロ', inv_mid:'🕐 中期', inv_long:'⚠ 長期', inv_unstored:'📍 未格納',
+    inv_modal_title:'在庫詳細', inv_modal_close:'閉じる',
+    manual_title_receipt:'品番を入力（受入）',
+    manual_title_store:'品番を入力（格納）',
+    manual_title_issue:'品番を入力（出庫）',
+    manual_cancel:'✕ キャンセル', manual_submit:'✓ 決定',
+    inv_scan_item_btn:'📡 現品票スキャン',
+    inv_scan_loc_btn:'📡 棚番スキャン',
+    inv_scan_cancel:'✕ キャンセル',
+    inv_scan_item_label:'📡 現品票スキャン待機中...',
+    inv_scan_loc_label:'📡 棚番スキャン待機中...',
+    inv_scan_item_hint:'現品票バーコードを読み込んでください',
+    inv_scan_loc_hint:'棚番バーコードを読み込んでください（例: CMD:LOC:12）',
+    pick_unit:'個', pick_hint:'現品票バーコードをスキャン（ポカヨケ）',
+    issue_complete:'✓ 出庫完了', issue_cancel:'✕ 中断',
+    dash_receipt:'本日受入', dash_issue:'本日出庫完了',
+    dashboard_count_unit:'件',
+    dash_items:'在庫品目数', dash_pending:'本日未完了',
+    dash_updated:'最終更新: ',
+    dash_maker_label:'メーカー別出庫進捗',
+    dash_daily_label:'日別出庫状況',
+    manage_import_label:'データ取込',
+    manage_receipt_label:'受入指示 XLS',
+    manage_receipt_hint:'受入指示一覧表.xls',
+    manage_work_label:'作業依頼書 XLSX（複数可）',
+    manage_work_hint:'5_14ホンダ.xlsx など',
+    manage_master_label:'基幹マスタ XLSX',
+    manage_master_hint:'基幹データ_統合マスタ.xlsx',
+    manage_report_label:'在庫レポート出力（ROKI報告用）',
+    manage_export_long:'📊 中期・長期在庫 Excelダウンロード',
+    manage_export_all:'📋 全在庫 Excelダウンロード',
+    manage_adj_label:'在庫調整',
+    manage_data_label:'データ操作',
+    manage_export_json:'💾 JSONエクスポート（バックアップ）',
+    manage_import_json:'📂 JSONインポート（復元）',
+    manage_clear:'🗑 全データ削除',
+    adj_current:'現在庫数', adj_new:'調整後数量', adj_reason:'理由',
+    adj_r1:'棚卸し差異', adj_r2:'現品票手書き変更',
+    adj_r3:'入力誤り修正', adj_r4:'余り品戻し', adj_r5:'その他',
+    adj_submit:'調整を登録',
+    unit_pcs:'個', unit_loc:'番', unit_of:'/',
+    tag_unstored:'未格納', tag_waiting:'入庫待ち',
+    tag_shortage:'⚠ 在庫不足', tag_overdue:'⚠ 期限超過',
+    tag_overage:'余り置場',
+    tag_zero:'在庫ゼロ', tag_mid:'🕐 中期', tag_long:'⚠ 長期',
+    tag_days:'{n}日経過',
+    today:'今日', yesterday:'昨日', day2ago:'2日前', day_next:'翌週',
+    day_tomorrow:'明日',
+    inv_detail_loc:'ロケーション', inv_detail_stock:'在庫数',
+    inv_detail_lot:'LOT',
+    inv_detail_maker:'メーカー',
+    inv_detail_receipt_hist:'入庫履歴（直近5件）',
+    inv_detail_issue_hist:'出庫履歴（直近5件）',
+    inv_detail_none:'なし',
+    issue_due_label:'出庫予定',
+    supply_code_label:'支給品番',
+    store_qty_label:'格納数量（変更時のみ入力）',
+    pick_needed:'必要数', pick_stock:'在庫数', pick_maker:'メーカー',
+    no_history:'まだ記録がありません', no_items:'該当する品目がありません',
+    no_orders:'該当する依頼書がありません',
+    no_stock:'在庫なし', no_issue_plan:'出庫予定なし',
+    col_code:'品番', col_name:'品名', col_maker:'メーカー',
+    col_loc:'ロケーション', col_qty:'在庫数量',
+    col_receipt_date:'受入日', col_days:'経過日数', col_section:'区分',
+    col_last_issue:'最終出庫日',
+    section_mid:'中期', section_long:'長期',
+    sheet_midlong:'中期長期在庫', sheet_all:'全在庫',
+    toast_receipt_done:'受入登録完了',
+    toast_store_done:'に格納完了',
+    toast_issue_done:'出庫完了',
+    toast_cancel_done:'中断しました（在庫変動なし）',
+    toast_qty_reached:'必要数に達しました！出庫完了ボタンを押してください',
+    toast_excel_done:'Excelをダウンロードしました',
+    toast_adj_done:'調整完了',
+    toast_restored:'データを復元しました',
+    toast_cleared:'全データを削除しました',
+    toast_receipt_imported:'件取込完了',
+    toast_work_imported:'件取込（{n}ファイル）',
+    toast_master_imported:'品目取込完了',
+    err_code_mismatch:'⚠ 品番不一致',
+    err_already_scanned:'この現品票は既にスキャン済みです',
+    err_not_found:'依頼書が見つかりません',
+    err_not_loc_qr:'棚番QRではありません',
+    err_select_item:'先に現品票をスキャンしてください',
+    err_qty:'正しい数量を入力してください',
+    err_import:'インポートエラー',
+    confirm_clear:'全データを削除します。よろしいですか？',
+    inv_no_stock:'在庫なし',
+    inv_has_issue:'出庫予定あり（{n}件）',
+    loc_title:'番の在庫',
+  },
+  pt: {
+    tab_receipt:'Recebim.', tab_store:'Armazen.', tab_issue:'Saída',
+    tab_inventory:'Estoque', tab_dashboard:'Progresso', tab_manage:'Gestão',
+    receipt_title:'📦 Recebimento', store_title:'🗂 Armazenamento',
+    issue_title:'📤 Separação', inv_title:'📋 Estoque',
+    dash_title:'📊 Status', manage_title:'⚙️ Gestão',
+    scan_waiting:'📡 Aguardando leitura',
+    receipt_scan_hint:'Leia o código de barras da nota',
+    store_scan_hint:'Leia o código de barras da nota',
+    store_loc_label:'📡 Ler prateleira → Armazenar',
+    store_loc_hint:'Leia o código da prateleira (ex: CMD:LOC:12)',
+    store_back_btn:'← Voltar',
+    issue_scan_hint:'Leia o código do item na ordem de trabalho',
+    issue_date_label:'Data de entrega: ',
+    manual_btn:'⌨ Manual',
+    receipt_today:'Hoje {n} reg.', store_today:'Hoje {n} reg.',
+    issue_pending:'{n} pendentes', inv_count:'{n} itens',
+    receipt_history_label:'Histórico de hoje',
+    store_history_label:'Histórico de armazenamento de hoje',
+    maker_all:'Todos', maker_other:'Outros',
+    inv_all:'Todos', inv_other:'Outros',
+    inv_zero:'Zero', inv_mid:'🕐 Médio prazo', inv_long:'⚠ Longo prazo',
+    inv_unstored:'📍 Não armaz.',
+    inv_modal_title:'Detalhes', inv_modal_close:'Fechar',
+    manual_title_receipt:'Inserir código (Recebimento)',
+    manual_title_store:'Inserir código (Armazenamento)',
+    manual_title_issue:'Inserir código (Saída)',
+    manual_cancel:'✕ Cancelar', manual_submit:'✓ OK',
+    inv_scan_item_btn:'📡 Ler nota', inv_scan_loc_btn:'📡 Ler prateleira',
+    inv_scan_cancel:'✕ Cancelar',
+    inv_scan_item_label:'📡 Aguardando leitura da nota...',
+    inv_scan_loc_label:'📡 Aguardando leitura da prateleira...',
+    inv_scan_item_hint:'Leia o código de barras da nota',
+    inv_scan_loc_hint:'Leia o código da prateleira (ex: CMD:LOC:12)',
+    pick_unit:' unid.', pick_hint:'Leia o código da nota (Anti-erro)',
+    issue_complete:'✓ Confirmar saída', issue_cancel:'✕ Cancelar',
+    dash_receipt:'Recebimentos hoje', dash_issue:'Saídas concluídas',
+    dashboard_count_unit:'',
+    dash_items:'Itens em estoque', dash_pending:'Pendentes hoje',
+    dash_updated:'Atualizado: ',
+    dash_maker_label:'Progresso por fabricante',
+    dash_daily_label:'Status diário',
+    manage_import_label:'Importar dados',
+    manage_receipt_label:'Instruções de recebimento XLS',
+    manage_receipt_hint:'Lista de instrucoes.xls',
+    manage_work_label:'Ordem de trabalho XLSX (múltiplos)',
+    manage_work_hint:'Ex: 5_14Honda.xlsx',
+    manage_master_label:'Master de dados XLSX',
+    manage_master_hint:'Master integrado.xlsx',
+    manage_report_label:'Relatório de estoque (para ROKI)',
+    manage_export_long:'📊 Download Excel estoque médio/longo',
+    manage_export_all:'📋 Download Excel todo o estoque',
+    manage_adj_label:'Ajuste de estoque',
+    manage_data_label:'Operações de dados',
+    manage_export_json:'💾 Exportar JSON (Backup)',
+    manage_import_json:'📂 Importar JSON (Restaurar)',
+    manage_clear:'🗑 Apagar todos os dados',
+    adj_current:'Estoque atual', adj_new:'Nova quantidade', adj_reason:'Motivo',
+    adj_r1:'Diferença de inventário', adj_r2:'Correção manual',
+    adj_r3:'Erro de entrada', adj_r4:'Devolução de embalagem', adj_r5:'Outro',
+    adj_submit:'Registrar ajuste',
+    unit_pcs:' unid.', unit_loc:'', unit_of:'/',
+    tag_unstored:'Não armaz.', tag_waiting:'Aguardando',
+    tag_shortage:'⚠ Insuficiente', tag_overdue:'⚠ Expirado',
+    tag_overage:'Excedente',
+    tag_zero:'Zero', tag_mid:'🕐 Médio', tag_long:'⚠ Longo',
+    tag_days:'{n} dias',
+    today:'Hoje', yesterday:'Ontem', day2ago:'2 dias', day_next:'Próx.',
+    day_tomorrow:'Amanhã',
+    inv_detail_loc:'Local', inv_detail_stock:'Estoque',
+    inv_detail_lot:'LOT', inv_detail_maker:'Fabricante',
+    inv_detail_receipt_hist:'Entrada (5 últ.)',
+    inv_detail_issue_hist:'Saída (5 últ.)',
+    inv_detail_none:'Nenhum',
+    issue_due_label:'Saída prevista',
+    supply_code_label:'Código',
+    store_qty_label:'Quantidade (alterar se necessário)',
+    pick_needed:'Necessário', pick_stock:'Estoque', pick_maker:'Fabricante',
+    no_history:'Sem registros', no_items:'Sem itens', no_orders:'Sem ordens',
+    no_stock:'Sem estoque', no_issue_plan:'Sem previsão de saída',
+    col_code:'Código', col_name:'Nome', col_maker:'Fabricante',
+    col_loc:'Local', col_qty:'Quantidade',
+    col_receipt_date:'Data entrada', col_days:'Dias passados',
+    col_section:'Tipo', col_last_issue:'Última saída',
+    section_mid:'Médio prazo', section_long:'Longo prazo',
+    sheet_midlong:'Estoque médio-longo', sheet_all:'Todo estoque',
+    toast_receipt_done:'Recebimento registrado',
+    toast_store_done:' armazenado na prat.',
+    toast_issue_done:'Saída concluída',
+    toast_cancel_done:'Cancelado (estoque não alterado)',
+    toast_qty_reached:'Quantidade atingida! Confirme a saída.',
+    toast_excel_done:'Excel baixado',
+    toast_adj_done:'Ajuste concluído',
+    toast_restored:'Dados restaurados',
+    toast_cleared:'Dados apagados',
+    toast_receipt_imported:' reg. importados',
+    toast_work_imported:' reg. importados ({n} arquivo(s))',
+    toast_master_imported:' itens importados',
+    err_code_mismatch:'⚠ Código errado',
+    err_already_scanned:'Slip já escaneado',
+    err_not_found:'Ordem não encontrada',
+    err_not_loc_qr:'Não é QR de prateleira',
+    err_select_item:'Escaneie o slip primeiro',
+    err_qty:'Insira uma quantidade válida',
+    err_import:'Erro de importação',
+    confirm_clear:'Apagar todos os dados?',
+    inv_no_stock:'Sem estoque',
+    inv_has_issue:'Saída prevista ({n})',
+    loc_title:' - estoque na prateleira',
+  },
+  tl: {
+    tab_receipt:'Resibo', tab_store:'Imbak', tab_issue:'Labas',
+    tab_inventory:'Imbentaryo', tab_dashboard:'Progreso', tab_manage:'Pamamahala',
+    receipt_title:'📦 Resibo', store_title:'🗂 Pag-iimbak',
+    issue_title:'📤 Paglabas', inv_title:'📋 Imbentaryo',
+    dash_title:'📊 Status', manage_title:'⚙️ Pamamahala',
+    scan_waiting:'📡 Naghihintay ng scan',
+    receipt_scan_hint:'I-scan ang barcode ng slip',
+    store_scan_hint:'I-scan ang barcode ng slip',
+    store_loc_label:'📡 I-scan ang istante → Iimbak',
+    store_loc_hint:'I-scan ang barcode ng istante (hal: CMD:LOC:12)',
+    store_back_btn:'← Bumalik',
+    issue_scan_hint:'I-scan ang barcode ng aytem sa order',
+    issue_date_label:'Petsa ng paghahatid: ',
+    manual_btn:'⌨ Manual',
+    receipt_today:'Ngayon {n} rekord', store_today:'Ngayon {n} rekord',
+    issue_pending:'{n} pending', inv_count:'{n} aytem',
+    receipt_history_label:'Kasaysayan ngayon',
+    store_history_label:'Kasaysayan ng imbak ngayon',
+    maker_all:'Lahat', maker_other:'Iba pa',
+    inv_all:'Lahat', inv_other:'Iba pa',
+    inv_zero:'Zero', inv_mid:'🕐 Katamtaman', inv_long:'⚠ Matagal',
+    inv_unstored:'📍 Hindi nakaimbak',
+    inv_modal_title:'Detalye', inv_modal_close:'Isara',
+    manual_title_receipt:'Ilagay ang code (Resibo)',
+    manual_title_store:'Ilagay ang code (Imbak)',
+    manual_title_issue:'Ilagay ang code (Labas)',
+    manual_cancel:'✕ Kanselahin', manual_submit:'✓ OK',
+    inv_scan_item_btn:'📡 I-scan ang slip', inv_scan_loc_btn:'📡 I-scan ang istante',
+    inv_scan_cancel:'✕ Kanselahin',
+    inv_scan_item_label:'📡 Naghihintay ng scan ng slip...',
+    inv_scan_loc_label:'📡 Naghihintay ng scan ng istante...',
+    inv_scan_item_hint:'I-scan ang barcode ng slip',
+    inv_scan_loc_hint:'I-scan ang barcode ng istante (hal: CMD:LOC:12)',
+    pick_unit:' yunit', pick_hint:'I-scan ang slip (Anti-mali)',
+    issue_complete:'✓ Kumpirmahin', issue_cancel:'✕ Kanselahin',
+    dash_receipt:'Natanggap ngayon', dash_issue:'Natapos na labas',
+    dashboard_count_unit:'',
+    dash_items:'Bilang ng aytem', dash_pending:'Pending ngayon',
+    dash_updated:'Na-update: ',
+    dash_maker_label:'Progreso ayon sa gawa',
+    dash_daily_label:'Araw-araw na status',
+    manage_import_label:'Mag-import ng data',
+    manage_receipt_label:'Instruksyon ng resibo XLS',
+    manage_receipt_hint:'Listahan ng instruksyon.xls',
+    manage_work_label:'Order ng trabaho XLSX (marami)',
+    manage_work_hint:'Hal: 5_14Honda.xlsx',
+    manage_master_label:'Master data XLSX',
+    manage_master_hint:'Pinagsamang master.xlsx',
+    manage_report_label:'Ulat ng imbentaryo (para sa ROKI)',
+    manage_export_long:'📊 I-download ang matagal na imbentaryo',
+    manage_export_all:'📋 I-download ang lahat ng imbentaryo',
+    manage_adj_label:'Pag-aayos ng imbentaryo',
+    manage_data_label:'Mga operasyon ng data',
+    manage_export_json:'💾 I-export ang JSON (Backup)',
+    manage_import_json:'📂 I-import ang JSON (I-restore)',
+    manage_clear:'🗑 Burahin ang lahat',
+    adj_current:'Kasalukuyang imbentaryo', adj_new:'Bagong dami', adj_reason:'Dahilan',
+    adj_r1:'Pagkakaiba sa imbentaryo', adj_r2:'Mano-manong pagwawasto',
+    adj_r3:'Error sa pagpasok', adj_r4:'Pagbabalik ng pakete', adj_r5:'Iba pa',
+    adj_submit:'Irehistro ang ayos',
+    unit_pcs:' yunit', unit_loc:'', unit_of:'/',
+    tag_unstored:'Hindi nakaimbak', tag_waiting:'Naghihintay',
+    tag_shortage:'⚠ Kulang', tag_overdue:'⚠ Lumipas',
+    tag_overage:'Natira',
+    tag_zero:'Zero', tag_mid:'🕐 Katamtaman', tag_long:'⚠ Matagal',
+    tag_days:'{n} araw',
+    today:'Ngayon', yesterday:'Kahapon', day2ago:'2 araw', day_next:'Susunod',
+    day_tomorrow:'Bukas',
+    inv_detail_loc:'Lokasyon', inv_detail_stock:'Imbentaryo',
+    inv_detail_lot:'LOT', inv_detail_maker:'Gawa',
+    inv_detail_receipt_hist:'Kasaysayan ng resibo (5 huli)',
+    inv_detail_issue_hist:'Kasaysayan ng labas (5 huli)',
+    inv_detail_none:'Wala',
+    issue_due_label:'Nakatalagang labas',
+    supply_code_label:'Code',
+    store_qty_label:'Dami (baguhin kung kailangan)',
+    pick_needed:'Kailangan', pick_stock:'Imbentaryo', pick_maker:'Gawa',
+    no_history:'Walang rekord', no_items:'Walang aytem', no_orders:'Walang order',
+    no_stock:'Walang stock', no_issue_plan:'Walang nakatalagang labas',
+    col_code:'Code', col_name:'Pangalan', col_maker:'Gawa',
+    col_loc:'Lokasyon', col_qty:'Dami',
+    col_receipt_date:'Petsa ng resibo', col_days:'Mga araw',
+    col_section:'Uri', col_last_issue:'Huling labas',
+    section_mid:'Katamtaman', section_long:'Matagal',
+    sheet_midlong:'Matagal na imbentaryo', sheet_all:'Lahat ng imbentaryo',
+    toast_receipt_done:'Naitala ang resibo',
+    toast_store_done:' nakaimbak sa istante ',
+    toast_issue_done:'Natapos ang labas',
+    toast_cancel_done:'Nakansela (walang pagbabago)',
+    toast_qty_reached:'Naabot na! Kumpirmahin ang labas.',
+    toast_excel_done:'Na-download ang Excel',
+    toast_adj_done:'Natapos ang ayos',
+    toast_restored:'Naibalik ang datos',
+    toast_cleared:'Nabura ang lahat',
+    toast_receipt_imported:' rekord na na-import',
+    toast_work_imported:' rekord ({n} file)',
+    toast_master_imported:' aytem na na-import',
+    err_code_mismatch:'⚠ Maling code',
+    err_already_scanned:'Na-scan na ang slip na ito',
+    err_not_found:'Hindi nahanap ang order',
+    err_not_loc_qr:'Hindi QR ng istante',
+    err_select_item:'I-scan muna ang slip',
+    err_qty:'Maglagay ng tamang dami',
+    err_import:'Error sa pag-import',
+    confirm_clear:'Burahin ang lahat ng datos?',
+    inv_no_stock:'Walang stock',
+    inv_has_issue:'May nakatalagang labas ({n})',
+    loc_title:' - imbentaryo sa istante',
+  }
+};
+
+var currentLang = 'ja';
+function t(key, vars) {
+  if (typeof I18N === 'undefined') return key;
+  var dict = I18N[currentLang] || I18N.ja;
+  var str = dict[key] !== undefined ? dict[key] : (I18N.ja[key] !== undefined ? I18N.ja[key] : key);
+  if (vars) Object.keys(vars).forEach(function(k){ str = str.replace('{'+k+'}', vars[k]); });
+  return str;
+}
+
+function setLang(lang) {
+  currentLang = lang;
+  document.querySelectorAll('.lang-btn').forEach(function(b){ b.classList.remove('active'); });
+  var btn = document.getElementById('lang-'+lang);
+  if (btn) btn.classList.add('active');
+  applyLang();
+}
+
+function applyLang() {
+  var s = function(id, key, vars) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = t(key, vars);
+  };
+  var p = function(id, key) {
+    var el = document.getElementById(id);
+    if (el) el.placeholder = t(key);
+  };
+  // タブ
+  s('t-tab-receipt','tab_receipt'); s('t-tab-store','tab_store');
+  s('t-tab-issue','tab_issue'); s('t-tab-inventory','tab_inventory');
+  s('t-tab-dashboard','tab_dashboard'); s('t-tab-manage','tab_manage');
+  // タイトル
+  s('t-receipt-title','receipt_title'); s('t-store-title','store_title');
+  s('t-issue-title','issue_title'); s('t-inv-title','inv_title');
+  s('t-dash-title','dash_title'); s('t-manage-title','manage_title');
+  // スキャン
+  s('t-receipt-scan-label','scan_waiting'); s('t-receipt-scan-hint','receipt_scan_hint');
+  s('t-store-scan-label','scan_waiting'); s('t-store-scan-hint','store_scan_hint');
+  s('t-store-loc-label','store_loc_label'); s('t-store-loc-hint','store_loc_hint');
+  s('t-store-back-btn','store_back_btn');
+  s('t-issue-scan-label','scan_waiting'); s('t-issue-scan-hint','issue_scan_hint');
+  s('t-issue-date-label','issue_date_label');
+  // ボタン
+  s('t-receipt-manual-btn','manual_btn'); s('t-store-manual-btn','manual_btn');
+  s('t-issue-manual-btn','manual_btn');
+  s('t-issue-complete-btn','issue_complete'); s('t-issue-cancel-btn','issue_cancel');
+  s('t-pick-unit','pick_unit'); s('t-pick-scan-hint','pick_hint');
+  // 在庫フィルター
+  s('t-maker-all','maker_all'); s('t-maker-other','maker_other');
+  s('t-inv-all','inv_all'); s('t-inv-other','inv_other');
+  s('t-inv-zero','inv_zero'); s('t-inv-mid','inv_mid');
+  s('t-inv-long','inv_long'); s('t-inv-unstored','inv_unstored');
+  // 在庫スキャン
+  s('t-inv-scan-item-btn','inv_scan_item_btn'); s('t-inv-scan-loc-btn','inv_scan_loc_btn');
+  s('t-inv-scan-cancel','inv_scan_cancel');
+  // モーダル
+  s('t-inv-modal-title','inv_modal_title'); s('t-inv-modal-close','inv_modal_close');
+  s('t-manual-cancel','manual_cancel'); s('t-manual-submit','manual_submit');
+  // ダッシュボード
+  s('t-dash-maker-label','dash_maker_label'); s('t-dash-daily-label','dash_daily_label');
+  // 管理
+  s('t-manage-import-label','manage_import_label');
+  s('t-manage-receipt-label','manage_receipt_label');
+  s('t-manage-receipt-hint','manage_receipt_hint');
+  s('t-manage-work-label','manage_work_label');
+  s('t-manage-work-hint','manage_work_hint');
+  s('t-manage-master-label','manage_master_label');
+  s('t-manage-master-hint','manage_master_hint');
+  s('t-manage-report-label','manage_report_label');
+  s('t-manage-export-long-btn','manage_export_long');
+  s('t-manage-export-all-btn','manage_export_all');
+  s('t-manage-adj-label','manage_adj_label');
+  s('t-manage-data-label','manage_data_label');
+  s('t-manage-export-json-btn','manage_export_json');
+  s('t-manage-import-json-btn','manage_import_json');
+  s('t-manage-clear-btn','manage_clear');
+  s('t-adj-current-label','adj_current'); s('t-adj-new-label','adj_new');
+  s('t-adj-reason-label','adj_reason'); s('t-adj-submit-btn','adj_submit');
+  s('t-adj-r1','adj_r1'); s('t-adj-r2','adj_r2'); s('t-adj-r3','adj_r3');
+  s('t-adj-r4','adj_r4'); s('t-adj-r5','adj_r5');
+  // プレースホルダー
+  p('inv-search','inv_all');
+  // 検索ラベル
+  s('t-receipt-history-label','receipt_history_label');
+  s('t-store-history-label','store_history_label');
+  // ストア用ラベル
+  s('t-store-qty-label','store_qty_label');
+  // 動的要素を再描画
+  updateReceiptCount(); updateStoreCount();
+  renderIssueDateOptions(); renderIssueList();
+  renderInventory();
+  if (document.getElementById('screen-dashboard').classList.contains('active')) renderDashboard();
+}
+
+// ════════════════════════════════════════════════════════
+// DB
+// ════════════════════════════════════════════════════════
+var DB = {
+  receiptOrders:  [],
+  workOrders:     [],
+  inventory:      [],
+  receiptHistory: [],
+  issueHistory:   [],
+  storeHistory:   [],
+  adjustHistory:  [],
+  masterItems:    [],
+};
+
+function saveDB() {
+  try { localStorage.setItem('roki_wms', JSON.stringify(DB)); } catch(e) {}
+}
+function loadDB() {
+  try {
+    var d = localStorage.getItem('roki_wms');
+    if (d) { var parsed = JSON.parse(d); Object.keys(parsed).forEach(function(k){ if(DB[k]!==undefined) DB[k]=parsed[k]; }); }
+  } catch(e) {}
+}
+
+// ════════════════════════════════════════════════════════
+// UTILITIES
+// ════════════════════════════════════════════════════════
+var toastTimer;
+function showToast(msg, type) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + (type||'info');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.className = ''; }, 2800);
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+
+// ════════════════════════════════════════════════
+// 営業日計算（土日スキップ）
+// ════════════════════════════════════════════════
+function addBizDays(dateStr, n) {
+  var d = new Date(dateStr.replace(/\//g, '-'));
+  var added = 0;
+  while (added < n) {
+    d.setDate(d.getDate() + 1);
+    var dow = d.getDay(); // 0=日, 6=土
+    if (dow !== 0 && dow !== 6) added++;
+  }
+  return d.toISOString().split('T')[0].replace(/-/g, '/');
+}
+
+function isBizDay(dateStr) {
+  var dow = new Date(dateStr.replace(/\//g, '-')).getDay();
+  return dow !== 0 && dow !== 6;
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  if (d === TODAY) return t('today') + '（' + d.slice(5) + '）';
+  if (d === YESTERDAY) return t('yesterday') + '（' + d.slice(5) + '）';
+  if (d === DAY2AGO) return t('day2ago') + '（' + d.slice(5) + '）';
+  if (d === TOMORROW) return t('day_next') + '（' + d.slice(5) + '）';
+  return d.slice(5).replace('/','/');
+}
+
+function daysSince(dateStr) {
+  if (!dateStr) return 0;
+  return Math.floor((Date.now() - new Date(dateStr.replace(/\//g,'-'))) / 86400000);
+}
+
+function isIssued(wno) {
+  return DB.issueHistory.some(function(i){ return i.workOrderNo === wno; });
+}
+
+function getInvMaker(inv) {
+  if (inv.maker && inv.maker !== 'その他') return inv.maker;
+  var code = inv.itemCode || inv.supplyItemCode || '';
+  if (MASTER_ITEM_TO_MAKER && MASTER_ITEM_TO_MAKER[code]) return MASTER_ITEM_TO_MAKER[code];
+  return 'その他';
+}
+
+function getHomeLabel(id) {
+  var m = {'10':'アイシンKD','79':'輸出','80':'ホンダ/スズキ','81':'ホンダ未シール',
+           '82':'スズキKD','83':'スズキKD','84':'トヨタ','85':'ニッサン',
+           '86':'ダイハツ','87':'ミツビシKD','89':'輸出'};
+  return m[String(id)] || String(id) || '';
+}
+
+// ════════════════════════════════════════════════════════
+// QR PARSER
+// ════════════════════════════════════════════════════════
+function parseQR(raw) {
+  var s = (raw||'').replace(/[\r\n]+/g,' ').trim();
+  if (!s) return {type:'UNKNOWN',raw:s,supplyItemCode:'',qty:0,tagId:''};
+  if (s.startsWith('CMD:ISSUE'))  return {type:'CMD',cmd:'ISSUE'};
+  if (s.startsWith('CMD:CANCEL')) return {type:'CMD',cmd:'CANCEL'};
+  if (/^CMD:LOC:\d+/.test(s)) return {type:'LOC',locationId:parseInt(s.replace('CMD:LOC:',''))};
+  // 英語版 DS〜
+  if (/^DS/i.test(s)) {
+    var p = s.split(/\s+/);
+    var code = p[0].replace(/^DS+/i,'');
+    var qty = 0, tagId = '', lot = '';
+    p.forEach(function(x){
+      if (/^[Nn]\d{8,}/.test(x)) tagId = x;
+      else if (/^H0D/i.test(x)) lot = x;
+      else if (/^0*\d{1,6}$/.test(x) && parseInt(x) > 0) qty = parseInt(x);
+    });
+    // 数量が末尾要素で0埋めの場合（例: 000012）
+    if (!qty && p.length > 1) {
+      var last = p[p.length - 1];
+      if (/^0+\d+$/.test(last)) qty = parseInt(last);
+    }
+    return {type:'EN',supplyItemCode:code,qty:qty,tagId:tagId,lotNumber:lot,raw:s};
+  }
+  // 日本語版 PS〜
+  if (/^PS/.test(s)) {
+    var p2 = s.split(/\s+/);
+    var code2 = p2[0].replace(/^PS/,'');
+    var qty2 = 0, tagId2 = '';
+    p2.forEach(function(x){
+      if (/^[Aa]\d{8,}/.test(x)) tagId2 = x;
+      else if (/^\d{4,}$/.test(x)) qty2 = parseInt(x);
+    });
+    return {type:'JP',supplyItemCode:code2,qty:qty2,tagId:tagId2,raw:s};
+  }
+  // それ以外 → 品番として扱う
+  return {type:'DIRECT',supplyItemCode:s,qty:0,tagId:'',raw:s};
+}
+
+// ════════════════════════════════════════════════════════
+// SOUND
+// ════════════════════════════════════════════════════════
+function playBeep(type) {
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (type === 'ok') {
+      var o=ctx.createOscillator(), g=ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value=1200; o.type='sine';
+      g.gain.setValueAtTime(0.3,ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.15);
+      o.start(ctx.currentTime); o.stop(ctx.currentTime+0.15);
+    } else if (type === 'ng') {
+      [0,0.2].forEach(function(delay){
+        var o=ctx.createOscillator(), g=ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value=200; o.type='square';
+        g.gain.setValueAtTime(0.4,ctx.currentTime+delay);
+        g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.18);
+        o.start(ctx.currentTime+delay); o.stop(ctx.currentTime+delay+0.18);
+      });
+    } else if (type === 'done') {
+      [[880,0],[1320,0.22]].forEach(function(pair){
+        var o=ctx.createOscillator(), g=ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value=pair[0]; o.type='sine';
+        g.gain.setValueAtTime(0.3,ctx.currentTime+pair[1]);
+        g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+pair[1]+0.3);
+        o.start(ctx.currentTime+pair[1]); o.stop(ctx.currentTime+pair[1]+0.3);
+      });
+    }
+  } catch(e) {}
+}
+
+// ════════════════════════════════════════════════════════
+// SCANNER SETUP
+// ════════════════════════════════════════════════════════
+// 全角→半角変換（IME誤変換対策）
+function toHalfWidth(str) {
+  return str
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+    .replace(/[ぁ-んァ-ヶ]/g, function(c){
+      // ひらがな・カタカナをアルファベットに変換する対応表
+      var kanaToAlpha = {'あ':'A','い':'I','う':'U','え':'E','お':'O','ー':'-','・':'-'};
+      return kanaToAlpha[c] || c;
+    })
+    .replace(/あ/g,'A').replace(/い/g,'I').replace(/う/g,'U')
+    .replace(/え/g,'E').replace(/お/g,'O')
+    // 個別の誤変換対応
+    .replace(/あ/g,'A').replace(/い/g,'I').replace(/う/g,'U')
+    .replace(/え/g,'E').replace(/お/g,'O')
+    .replace(/か/g,'KA').replace(/き/g,'KI').replace(/く/g,'KU')
+    .replace(/け/g,'KE').replace(/こ/g,'KO')
+    .replace(/さ/g,'SA').replace(/し/g,'SI').replace(/す/g,'SU')
+    .replace(/せ/g,'SE').replace(/そ/g,'SO')
+    .replace(/た/g,'TA').replace(/ち/g,'TI').replace(/つ/g,'TU')
+    .replace(/て/g,'TE').replace(/と/g,'TO')
+    .replace(/な/g,'NA').replace(/に/g,'NI').replace(/ぬ/g,'NU')
+    .replace(/ね/g,'NE').replace(/の/g,'NO')
+    .replace(/は/g,'HA').replace(/ひ/g,'HI').replace(/ふ/g,'HU')
+    .replace(/へ/g,'HE').replace(/ほ/g,'HO')
+    .replace(/ま/g,'MA').replace(/み/g,'MI').replace(/む/g,'MU')
+    .replace(/め/g,'ME').replace(/も/g,'MO')
+    .replace(/や/g,'YA').replace(/ゆ/g,'YU').replace(/よ/g,'YO')
+    .replace(/ら/g,'RA').replace(/り/g,'RI').replace(/る/g,'RU')
+    .replace(/れ/g,'RE').replace(/ろ/g,'RO')
+    .replace(/わ/g,'WA').replace(/を/g,'WO').replace(/ん/g,'N')
+    .trim();
+}
+
+function setupScanner(inputId, callback) {
+  var inp = document.getElementById(inputId);
+  if (!inp) return;
+  inp.value = '';
+  if (inp._scanHandler) {
+    inp.removeEventListener('keydown', inp._scanHandler);
+    inp.removeEventListener('input',   inp._scanHandler);
+  }
+  inp._scanHandler = function(e) {
+    clearTimeout(inp._scanTimer);
+    if (e.type === 'keydown' && e.key === 'Enter' && inp.value.trim()) {
+      var v = toHalfWidth(inp.value.trim()); inp.value = '';
+      callback(v); return;
+    }
+    inp._scanTimer = setTimeout(function(){
+      var v = toHalfWidth(inp.value.trim());
+      if (v.length >= 4) { inp.value = ''; callback(v); }
+    }, 300);
+  };
+  inp.addEventListener('keydown', inp._scanHandler);
+  inp.addEventListener('input',   inp._scanHandler);
+  inp.focus();
+}
+
+function focusScanner(inputId) {
+  var el = document.getElementById(inputId);
+  if (el) { setTimeout(function(){ el.focus(); }, 100); }
+}
+
+// ════════════════════════════════════════════════════════
+// MANUAL INPUT MODAL
+// ════════════════════════════════════════════════════════
+var manualInputTarget = 'receipt';
+function showManualModal(target) {
+  manualInputTarget = target;
+  var titles = {
+    receipt: t('manual_title_receipt'),
+    store:   t('manual_title_store'),
+    issue:   t('manual_title_issue'),
+  };
+  document.getElementById('manual-modal-title').textContent = titles[target] || t('manual_btn');
+  document.getElementById('manual-input-field').value = '';
+  document.getElementById('manual-modal').classList.add('open');
+  setTimeout(function(){ document.getElementById('manual-input-field').focus(); }, 150);
+}
+function submitManualInput() {
+  var val = document.getElementById('manual-input-field').value.trim();
+  if (!val) return;
+  closeModal('manual-modal');
+  var parsed = parseQR(val);
+  if (manualInputTarget === 'receipt') handleReceiptQR(parsed);
+  else if (manualInputTarget === 'store') handleStoreItemQR(parsed);
+  else if (manualInputTarget === 'issue') handleIssueBarcode(val);
+}
+
+// ════════════════════════════════════════════════════════
+// TAB NAVIGATION
+// ════════════════════════════════════════════════════════
+function showTab(name) {
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.getElementById('screen-'+name).classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+  if (name === 'receipt')   { setTimeout(function(){ setupScanner('scanner-receipt', function(v){ handleReceiptQR(parseQR(v)); focusScanner('scanner-receipt'); }); }, 300); }
+  if (name === 'store')     { resetStore(); setTimeout(function(){ setupScanner('scanner-store', handleStoreScan); }, 300); }
+  if (name === 'issue')     { renderIssueDateOptions(); renderIssueList(); setTimeout(function(){ activateIssueScan(); }, 300); }
+  if (name === 'inventory') { renderInventory(); }
+  if (name === 'dashboard') { renderDashboard(); }
+}
+
+
+// ════════════════════════════════════════════════════════
+// 受入
+// ════════════════════════════════════════════════════════
+function updateReceiptCount() {
+  var n = DB.receiptHistory.filter(function(r){ return r.receiptDate === TODAY; }).length;
+  document.getElementById('receipt-count').textContent = t('receipt_today',{n:n});
+}
+
+function renderReceiptHistory() {
+  var el = document.getElementById('receipt-history');
+  var list = DB.receiptHistory.filter(function(r){ return r.receiptDate === TODAY; }).slice().reverse();
+  if (!list.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px;">' + t('no_history') + '</div>'; return; }
+  el.innerHTML = list.slice(0,10).map(function(r){
+    return '<div class="hist-row">'
+      + '<div><div class="hist-code">' + r.supplyItemCode + '</div>'
+      + '<div class="hist-name">' + (r.itemName||'') + '</div></div>'
+      + '<div class="hist-right">'
+      + '<div class="hist-qty">' + r.receiptQty + t('unit_pcs') + '</div>'
+      + '<div class="hist-date">' + (r.createdAt||'').slice(11,16) + '</div>'
+      + '</div></div>';
+  }).join('');
+}
+
+function handleReceiptQR(parsed) {
+  if (parsed.type === 'LOC' || parsed.type === 'CMD') {
+    showToast(t('err_not_loc_qr'), 'error'); focusScanner('scanner-receipt'); return;
+  }
+  var code = parsed.supplyItemCode;
+  if (!code) { focusScanner('scanner-receipt'); return; }
+  // 重複チェック
+  var dup = parsed.tagId ? DB.receiptHistory.find(function(r){ return r.tagId === parsed.tagId; }) : null;
+  if (dup) { showToast(t('tag_waiting') + ' ' + dup.receiptDate, 'warning'); focusScanner('scanner-receipt'); return; }
+  // 受入指示照合
+  var order = DB.receiptOrders.find(function(r){ return r.ItemNo === code; });
+  var qty = parsed.qty || (order ? order.OrderNum : 0);
+  var itemName = order ? order.ItemName : code;
+  // 在庫更新（未格納で追加）
+  var inv = DB.inventory.find(function(i){ return i.supplyItemCode === code && !i.stored; });
+  if (inv) {
+    inv.currentQty += qty;
+    inv.lastReceiptDate = TODAY;
+    inv.updatedAt = new Date().toISOString();
+  } else {
+    DB.inventory.push({
+      invId: 'INV-' + Date.now(),
+      supplyItemCode: code, itemCode: code,
+      itemName: itemName, currentQty: qty,
+      locationId: 0, lotNo: parsed.lotNumber || '',
+      lastReceiptDate: TODAY, lastIssueDate: '',
+      updatedAt: new Date().toISOString(),
+      stored: false, homeId: order ? order.HomeID : '00',
+      maker: order ? getMakerFromOrder(order) : 'その他',
+    });
+  }
+  // 受入履歴追加
+  DB.receiptHistory.push({
+    receiptId: 'RCV-' + Date.now(), scanType: parsed.type,
+    tagId: parsed.tagId||'', orderNo: parsed.lotNumber||'',
+    supplyItemCode: code, itemName: itemName, receiptQty: qty,
+    locationId: 0, homeId: order ? order.HomeID : '00',
+    receiptDate: TODAY, createdAt: new Date().toISOString(),
+  });
+  saveDB();
+  gasSend('receipt', {supplyItemCode:code, itemName:itemName, qty:qty, receiptDate:TODAY});
+  // 結果表示
+  var needQty = !qty;
+  var noOrder = !order;
+  var resultHtml = '<div class="card ' + (noOrder?'warning':'success') + '">'
+    + '<div class="result-grid">'
+    + '<div><div class="result-label">' + t('supply_code_label') + '</div>'
+    + '<div class="result-value mono">' + code + '</div></div>'
+    + '<div><div class="result-label">' + t('inv_detail_stock') + '</div>'
+    + '<div class="result-value big">' + qty + '</div></div>'
+    + '<div style="grid-column:1/-1"><div class="result-label">' + t('col_name') + '</div>'
+    + '<div style="font-size:14px;font-weight:700;">' + itemName + '</div></div>'
+    + '</div>';
+  if (noOrder) resultHtml += '<div style="font-size:12px;color:var(--orange2);margin-top:6px;">⚠ ' + t('err_not_found') + '</div>';
+  if (needQty) resultHtml += '<div class="form-group" style="margin-top:8px;">'
+    + '<label class="label">' + t('adj_new') + '</label>'
+    + '<input class="input" type="number" id="receipt-manual-qty" min="1" style="font-size:20px;font-weight:800;text-align:center;">'
+    + '</div><button class="btn btn-success" onclick="fixReceiptQty(\'' + code + '\')">' + t('toast_receipt_done') + '</button>';
+  resultHtml += '</div>';
+  document.getElementById('receipt-result').innerHTML = resultHtml;
+  showToast('✓ ' + t('toast_receipt_done') + ' ' + qty + t('unit_pcs'), 'success');
+  updateReceiptCount(); renderReceiptHistory();
+  focusScanner('scanner-receipt');
+}
+
+function fixReceiptQty(code) {
+  var qty = parseInt(document.getElementById('receipt-manual-qty').value);
+  if (!qty || qty <= 0) { showToast(t('err_qty'), 'error'); return; }
+  var inv = DB.inventory.find(function(i){ return i.supplyItemCode === code; });
+  if (inv) { inv.currentQty = qty; inv.updatedAt = new Date().toISOString(); }
+  var h = DB.receiptHistory[DB.receiptHistory.length-1];
+  if (h && h.supplyItemCode === code) h.receiptQty = qty;
+  saveDB(); document.getElementById('receipt-result').innerHTML = '';
+  showToast('✓ ' + qty + t('unit_pcs'), 'success');
+}
+
+function cancelReceipt() { document.getElementById('receipt-result').innerHTML = ''; }
+
+function getMakerFromOrder(order) {
+  if (!order) return 'その他';
+  var id = String(order.HomeID||'');
+  var m = {'80':'ホンダ','81':'ホンダ','82':'スズキ','83':'スズキ','84':'トヨタ',
+           '85':'ニッサン','86':'ダイハツ','87':'ミツビシ'};
+  return m[id] || 'その他';
+}
+
+// ════════════════════════════════════════════════════════
+// 格納
+// ════════════════════════════════════════════════════════
+var storeTarget = null;
+
+function updateStoreCount() {
+  var n = DB.storeHistory.filter(function(s){ return s.storeDate === TODAY; }).length;
+  document.getElementById('store-count').textContent = t('store_today',{n:n});
+}
+
+function renderStoreHistory() {
+  var el = document.getElementById('store-history');
+  var list = DB.storeHistory.filter(function(s){ return s.storeDate === TODAY; }).slice().reverse();
+  if (!list.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px;">' + t('no_history') + '</div>'; return; }
+  el.innerHTML = list.slice(0,8).map(function(s){
+    return '<div class="hist-row">'
+      + '<div><div class="hist-code">' + s.supplyItemCode + '</div>'
+      + '<div class="hist-name">' + (s.itemName||'') + '</div></div>'
+      + '<div class="hist-right">'
+      + '<div class="hist-loc">📍 ' + s.locationId + t('unit_loc') + '</div>'
+      + '<div class="hist-qty">' + s.storeQty + t('unit_pcs') + '</div>'
+      + '</div></div>';
+  }).join('');
+}
+
+function handleStoreScan(raw) {
+  var parsed = parseQR(raw);
+  if (!storeTarget) {
+    handleStoreItemQR(parsed);
+  } else {
+    if (parsed.type === 'LOC') handleStoreLocQR(parsed);
+    else handleStoreItemQR(parsed);
+  }
+}
+
+function resetStore() {
+  storeTarget = null;
+  document.getElementById('store-step1').style.display = 'block';
+  document.getElementById('store-step2').style.display = 'none';
+  document.getElementById('store-item-card').innerHTML = '';
+  setupScanner('scanner-store', handleStoreScan);
+}
+
+function handleStoreItemQR(parsed) {
+  if (parsed.type === 'LOC' || parsed.type === 'CMD') {
+    showToast(t('err_not_loc_qr'), 'error'); focusScanner('scanner-store'); return;
+  }
+  var code = parsed.supplyItemCode;
+  if (!code) { focusScanner('scanner-store'); return; }
+  var inv = DB.inventory.find(function(i){ return (i.supplyItemCode===code||i.itemCode===code); });
+  var qty = parsed.qty || (inv ? inv.currentQty : 0);
+  storeTarget = {code:code, inv:inv, qty:qty, parsed:parsed};
+  // 出庫予定チェック
+  var related = DB.workOrders.filter(function(o){
+    return !isIssued(o.WorkOrderNo) && (o.ItemCode===code||o.SupplyItemCode===code||
+      DB.inventory.some(function(i){ return i.supplyItemCode===code&&i.itemCode===o.ItemCode; }));
+  });
+  var dueDateMap = {};
+  related.forEach(function(o){ dueDateMap[o.DueDate]=(dueDateMap[o.DueDate]||0)+1; });
+  var dueHtml = '';
+  if (related.length > 0) {
+    dueHtml = '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">'
+      + '<div class="result-label">' + t('issue_due_label') + '</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">'
+      + Object.keys(dueDateMap).sort().map(function(d){
+        var lbl = formatDate(d);
+        var col = d===TODAY?'var(--green2)':d<TODAY?'var(--red2)':'var(--text2)';
+        return '<span style="background:var(--surface2);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;color:'+col+';">'
+          + lbl + ' ' + dueDateMap[d] + t('unit_count',{}) + '</span>';
+      }).join('') + '</div></div>';
+  }
+  var cardHtml = '<div class="card success">'
+    + '<div class="result-grid">'
+    + '<div><div class="result-label">' + t('supply_code_label') + '</div>'
+    + '<div class="result-value mono">' + code + '</div></div>'
+    + '<div><div class="result-label">' + t('inv_detail_stock') + '</div>'
+    + '<div class="result-value big">' + qty + '</div></div>'
+    + '<div style="grid-column:1/-1"><div class="result-label">' + t('col_name') + '</div>'
+    + '<div style="font-size:14px;font-weight:700;">' + (inv?inv.itemName:code) + '</div></div>'
+    + '</div>' + dueHtml + '</div>';
+  document.getElementById('store-item-card').innerHTML = cardHtml;
+  document.getElementById('store-qty').value = qty;
+  document.getElementById('store-step1').style.display = 'none';
+  document.getElementById('store-step2').style.display = 'block';
+  setupScanner('scanner-store-loc', function(v){ handleStoreLocQR(parseQR(v)); });
+}
+
+function handleStoreLocQR(parsed) {
+  if (!storeTarget) { showToast(t('err_select_item'), 'error'); return; }
+  if (parsed.type !== 'LOC') { showToast(t('err_not_loc_qr'), 'error'); focusScanner('scanner-store-loc'); return; }
+  var locId = parsed.locationId;
+  var qty = parseInt(document.getElementById('store-qty').value) || storeTarget.qty;
+  if (!qty || qty <= 0) { showToast(t('err_qty'), 'error'); return; }
+  var inv = storeTarget.inv;
+  if (inv) {
+    inv.locationId = locId; inv.stored = true;
+    inv.currentQty = qty; inv.updatedAt = new Date().toISOString();
+  }
+  DB.storeHistory.push({
+    storeId: 'STR-' + Date.now(),
+    supplyItemCode: storeTarget.code,
+    itemName: inv ? inv.itemName : storeTarget.code,
+    storeQty: qty, locationId: locId,
+    storeDate: TODAY, createdAt: new Date().toISOString(),
+  });
+  saveDB();
+  showToast('✓ ' + locId + t('unit_loc') + ' ' + t('toast_store_done') + ' ' + qty + t('unit_pcs'), 'success');
+  resetStore(); updateStoreCount(); renderStoreHistory();
+}
+
+
+// ════════════════════════════════════════════════════════
+// 出庫
+// ════════════════════════════════════════════════════════
+var issueMakerFilter = 'all';
+var currentPicking = null;
+
+function renderIssueDateOptions() {
+  var sel = document.getElementById('issue-date-select');
+  var dates = DB.workOrders
+    .filter(function(o){ return !isIssued(o.WorkOrderNo); })
+    .map(function(o){ return o.DueDate; });
+  dates = [...new Set(dates)].sort();
+  // 土日の納入日は除外（平日のみ）
+  dates = dates.filter(function(d){
+    var dow = new Date(d.replace(/\//g,'-')).getDay();
+    return dow !== 0 && dow !== 6;
+  });
+  if (!dates.length) { sel.innerHTML = ''; return; }
+  // デフォルト：今日+2営業日（土日スキップ）
+  var target = addBizDays(TODAY, 2);
+  var prev = sel.value;
+  sel.innerHTML = dates.map(function(d){
+    return '<option value="'+d+'">'+formatDate(d)+'</option>';
+  }).join('');
+  if (prev && dates.includes(prev)) sel.value = prev;
+  else if (dates.includes(target)) sel.value = target;
+  else { var f=dates.filter(function(d){return d>=target;}); sel.value=f.length?f[0]:dates[dates.length-1]; }
+}
+
+function filterIssueMaker(maker, el) {
+  issueMakerFilter = maker;
+  document.querySelectorAll('#issue-maker-chips .chip').forEach(function(c){ c.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  renderIssueList();
+}
+
+function renderIssueList() {
+  var dateFilter = document.getElementById('issue-date-select') ? document.getElementById('issue-date-select').value : '';
+  var orders = DB.workOrders.filter(function(o){ return !isIssued(o.WorkOrderNo); });
+  if (dateFilter) orders = orders.filter(function(o){ return o.DueDate === dateFilter; });
+  if (issueMakerFilter !== 'all') orders = orders.filter(function(o){ return o.Maker === issueMakerFilter; });
+  var pending = DB.workOrders.filter(function(o){ return !isIssued(o.WorkOrderNo); }).length;
+  document.getElementById('issue-count').textContent = t('issue_pending',{n:pending});
+  if (!orders.length) {
+    document.getElementById('issue-list').innerHTML =
+      '<div style="color:var(--text3);font-size:13px;padding:12px;">' + t('no_orders') + '</div>';
+    return;
+  }
+  document.getElementById('issue-list').innerHTML = orders.map(function(o){
+    var inv = DB.inventory.filter(function(i){
+      return i.supplyItemCode===o.SupplyItemCode||i.itemCode===o.ItemCode;
+    });
+    var totalStock = inv.reduce(function(s,i){ return s+i.currentQty; },0);
+    var ok = totalStock >= o.OrderQty;
+    var unstored = inv.filter(function(i){ return !i.stored&&i.currentQty>0; }).reduce(function(s,i){return s+i.currentQty;},0);
+    var waiting = totalStock === 0 && !inv.some(function(i){ return i.lastReceiptDate; });
+    var overage = inv.find(function(i){ return i.locationId==='余り置場'&&i.currentQty>0; });
+    var shortage = !waiting && totalStock > 0 && totalStock < o.OrderQty;
+    var locs = inv.filter(function(i){ return i.stored&&i.currentQty>0&&i.locationId!=='余り置場'; })
+      .map(function(i){ return i.locationId+t('unit_loc')+'('+i.currentQty+t('unit_pcs')+')'; }).join(' ');
+    var tags = '';
+    if (locs) tags += '<span class="tag tag-cyan">📍 '+locs+'</span> ';
+    if (waiting) tags += '<span class="tag tag-red">'+t('tag_waiting')+'</span> ';
+    else if (shortage) tags += '<span class="tag tag-orange">'+t('tag_shortage')+'</span> ';
+    if (unstored>0) tags += '<span class="tag tag-purple">'+t('tag_unstored')+' '+unstored+t('unit_pcs')+'</span> ';
+    if (overage) tags += '<span class="tag tag-orange">📦'+t('tag_overage')+' '+overage.currentQty+t('unit_pcs')+'</span> ';
+    var urgentCls = o.DueDate < TODAY ? ' urgent' : '';
+    return '<div class="list-item'+urgentCls+'" onclick=\'openPickingPanel('+JSON.stringify(o)+')\'>'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div class="item-code">'+o.ItemCode+'</div>'
+      + '<div class="item-name">'+o.ItemName+'</div>'
+      + '<div class="tags" style="margin-top:4px;">'
+      + '<span class="tag tag-blue">'+o.Maker+'</span> '
+      + '<span class="tag tag-gray">'+(o.DueDate?o.DueDate.slice(5):'')+'</span> '
+      + tags + '</div></div>'
+      + '<div style="text-align:right;margin-left:12px;white-space:nowrap;">'
+      + '<span class="item-qty '+(ok?'ok':'ng')+'">'+totalStock+'</span>'
+      + '<span class="item-qty-unit"> '+t('unit_of')+o.OrderQty+'</span>'
+      + '</div></div></div>';
+  }).join('');
+}
+
+function openPickingPanel(order) {
+  currentPicking = {order:order, scanned:0, scannedCodes:[], needed:order.OrderQty};
+  var inv = DB.inventory.filter(function(i){
+    return (i.supplyItemCode===order.SupplyItemCode||i.itemCode===order.ItemCode) && i.currentQty>0;
+  });
+  var totalStock = inv.reduce(function(s,i){return s+i.currentQty;},0);
+  var locs = inv.filter(function(i){return i.stored&&i.locationId!=='余り置場';})
+    .map(function(i){return '📍'+i.locationId+t('unit_loc')+' '+i.currentQty+t('unit_pcs');}).join('　');
+  var overage = inv.find(function(i){return i.locationId==='余り置場';});
+  var infoHtml = '<div class="result-grid" style="margin-bottom:8px;">'
+    + '<div><div class="result-label">'+t('pick_needed')+'</div><div class="result-value big">'+order.OrderQty+'</div></div>'
+    + '<div><div class="result-label">'+t('pick_stock')+'</div><div class="result-value big '+(totalStock>=order.OrderQty?'ok':'ng')+'">'+totalStock+'</div></div>'
+    + '<div><div class="result-label">'+t('pick_maker')+'</div><div class="result-value" style="font-size:13px;">'+order.Maker+'</div></div>'
+    + '<div><div class="result-label">'+t('item-code','col_code')+'</div><div class="result-value mono" style="font-size:11px;">'+order.ItemCode+'</div></div>'
+    + '</div>'
+    + (locs?'<div style="font-size:12px;color:var(--cyan2);margin-bottom:4px;">'+locs+'</div>':'')
+    + (overage?'<div style="font-size:12px;color:var(--orange2);margin-bottom:4px;">📦'+t('tag_overage')+' '+overage.currentQty+t('unit_pcs')+'</div>':'');
+  document.getElementById('picking-info-card').innerHTML = infoHtml;
+  updatePickingCounter();
+  document.getElementById('picking-panel').style.display = 'block';
+  document.getElementById('issue-list').style.display = 'none';
+  document.getElementById('issue-scan-area').style.display = 'none';
+  document.getElementById('picking-panel').scrollIntoView({behavior:'smooth',block:'start'});
+  setTimeout(function(){
+    setupScanner('scanner-picking', function(v){
+      var parsed = parseQR(v);
+      handlePickingQR(parsed);
+    });
+  }, 400);
+}
+
+function handlePickingQR(parsed) {
+  if (!currentPicking) return;
+  if (parsed.type === 'CMD') {
+    if (parsed.cmd === 'ISSUE') execIssue();
+    else if (parsed.cmd === 'CANCEL') cancelPicking();
+    return;
+  }
+  if (parsed.type === 'LOC') { showToast(t('err_not_loc_qr'), 'error'); focusScanner('scanner-picking'); return; }
+  var order = currentPicking.order;
+  // 品番チェック
+  var code = parsed.supplyItemCode;
+  var match = (code === order.SupplyItemCode || code === order.ItemCode ||
+    DB.inventory.some(function(i){ return i.supplyItemCode===code&&i.itemCode===order.ItemCode; }));
+  if (!match) {
+    playBeep('ng');
+    showToast(t('err_code_mismatch') + ' ' + code, 'error');
+    focusScanner('scanner-picking'); return;
+  }
+  // 重複チェック
+  if (parsed.tagId && currentPicking.scannedCodes.includes(parsed.tagId)) {
+    showToast(t('err_already_scanned'), 'warning'); focusScanner('scanner-picking'); return;
+  }
+  var qty = parsed.qty || 1;
+  currentPicking.scanned += qty;
+  if (parsed.tagId) currentPicking.scannedCodes.push(parsed.tagId);
+  playBeep('ok');
+  updatePickingCounter();
+  showToast('+' + qty + t('unit_pcs') + '（' + currentPicking.scanned + t('unit_pcs') + '）', 'info');
+  if (currentPicking.scanned >= currentPicking.needed) {
+    playBeep('done');
+    showToast(t('toast_qty_reached'), 'info');
+  }
+  focusScanner('scanner-picking');
+}
+
+function updatePickingCounter() {
+  if (!currentPicking) return;
+  var scanned = currentPicking.scanned;
+  var needed = currentPicking.needed;
+  document.getElementById('pick-scanned').textContent = scanned;
+  document.getElementById('pick-needed').textContent = needed;
+  var pct = needed > 0 ? Math.min(100, Math.round(scanned/needed*100)) : 0;
+  var bar = document.getElementById('pick-progress');
+  bar.style.width = pct + '%';
+  bar.className = 'prog-bar ' + (pct >= 100 ? 'green' : pct > 50 ? '' : 'orange');
+}
+
+function execIssue() {
+  if (!currentPicking) return;
+  var order = currentPicking.order;
+  var inv = DB.inventory.filter(function(i){ return i.supplyItemCode===order.SupplyItemCode||i.itemCode===order.ItemCode; });
+  var remaining = order.OrderQty;
+  var now = new Date().toISOString();
+  inv.forEach(function(i){
+    if (remaining <= 0) {
+      if (i.currentQty > 0 && !i.stored) { i.locationId='余り置場'; i.stored=true; i.updatedAt=now; }
+      return;
+    }
+    var deduct = Math.min(i.currentQty, remaining);
+    i.currentQty -= deduct; i.lastIssueDate=TODAY; i.updatedAt=now;
+    remaining -= deduct;
+  });
+  DB.issueHistory.push({
+    issueId:'ISS-'+Date.now(), workOrderNo:order.WorkOrderNo,
+    itemCode:order.ItemCode, itemName:order.ItemName,
+    issueQty:order.OrderQty, dueDate:order.DueDate,
+    issueDate:TODAY, createdAt:now, maker:order.Maker,
+  });
+  saveDB();
+  gasSend('issue', {workOrderNo:order.WorkOrderNo, itemCode:order.ItemCode, itemName:order.ItemName, qty:order.OrderQty, maker:order.Maker, dueDate:order.DueDate, issueDate:TODAY});
+  playBeep('done');
+  showToast('✓ ' + t('toast_issue_done') + ' ' + order.OrderQty + t('unit_pcs'), 'success');
+  closePicking();
+}
+
+function cancelPicking() {
+  showToast(t('toast_cancel_done'), 'info');
+  closePicking();
+}
+
+function closePicking() {
+  currentPicking = null;
+  document.getElementById('picking-panel').style.display = 'none';
+  document.getElementById('issue-list').style.display = 'block';
+  document.getElementById('issue-scan-area').style.display = 'block';
+  renderIssueDateOptions(); renderIssueList();
+  setTimeout(activateIssueScan, 300);
+}
+
+// 出庫タブ スキャン待機
+function activateIssueScan() {
+  var badge = document.getElementById('issue-scan-badge');
+  if (badge) badge.style.display = 'block';
+  setupScanner('scanner-issue', handleIssueBarcode);
+}
+
+function handleIssueBarcode(raw) {
+  if (currentPicking) { handlePickingQR(parseQR(raw)); setTimeout(activateIssueScan,200); return; }
+  var parsed = parseQR(raw);
+  var code = parsed.supplyItemCode || raw.trim();
+  var dateFilter = document.getElementById('issue-date-select') ? document.getElementById('issue-date-select').value : '';
+  var candidates = DB.workOrders.filter(function(o){
+    return !isIssued(o.WorkOrderNo) &&
+      (o.ItemCode===code||o.SupplyItemCode===code||
+       DB.inventory.some(function(i){return i.supplyItemCode===code&&i.itemCode===o.ItemCode;}));
+  });
+  if (dateFilter) {
+    var dated = candidates.filter(function(o){return o.DueDate===dateFilter;});
+    if (dated.length) candidates = dated;
+  }
+  if (!candidates.length) {
+    playBeep('ng'); showToast(t('err_not_found') + ': ' + code, 'error');
+    setTimeout(activateIssueScan, 200); return;
+  }
+  openPickingPanel(candidates[0]);
+}
+
+// ════════════════════════════════════════════════════════
+// 在庫
+// ════════════════════════════════════════════════════════
+var invFilter = 'all';
+
+function filterInv(f, el) {
+  invFilter = f;
+  document.querySelectorAll('#screen-inventory .chips .chip').forEach(function(c){ c.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  renderInventory();
+}
+
+function renderInventory() {
+  var q = (document.getElementById('inv-search').value||'').trim().toLowerCase();
+  var now = Date.now();
+  var d14 = new Date(now-7*86400000).toISOString().split('T')[0].replace(/-/g,'/');
+  var d30 = new Date(now-14*86400000).toISOString().split('T')[0].replace(/-/g,'/');
+  var items = DB.inventory.slice();
+  if (q) items = items.filter(function(i){
+    return (i.supplyItemCode||'').toLowerCase().includes(q) ||
+           (i.itemCode||'').toLowerCase().includes(q) ||
+           (i.itemName||'').toLowerCase().includes(q);
+  });
+  var MAKER_MAP = {honda:'ホンダ',suzuki:'スズキ',toyota:'トヨタ',nissan:'ニッサン',daihatsu:'ダイハツ',mitsubishi:'ミツビシ'};
+  var KNOWN_MAKERS = Object.values(MAKER_MAP);
+  if      (invFilter==='zero')     items=items.filter(function(i){return i.currentQty===0;});
+  else if (invFilter==='mid')      items=items.filter(function(i){return i.currentQty>0&&i.lastReceiptDate&&i.lastReceiptDate<=d14&&i.lastReceiptDate>d30;});
+  else if (invFilter==='long')     items=items.filter(function(i){return i.currentQty>0&&i.lastReceiptDate&&i.lastReceiptDate<=d30;});
+  else if (invFilter==='unstored') items=items.filter(function(i){return !i.stored&&i.currentQty>0;});
+  else if (MAKER_MAP[invFilter])   items=items.filter(function(i){return getInvMaker(i)===MAKER_MAP[invFilter];});
+  else if (invFilter==='other')    items=items.filter(function(i){return !KNOWN_MAKERS.includes(getInvMaker(i));});
+  // 在庫あり優先、ゼロを末尾に。在庫数降順
+  if (invFilter !== 'zero') {
+    items.sort(function(a,b){
+      if (a.currentQty===0&&b.currentQty>0) return 1;
+      if (a.currentQty>0&&b.currentQty===0) return -1;
+      return b.currentQty - a.currentQty;
+    });
+  }
+  document.getElementById('inv-count').textContent = t('inv_count',{n:items.length});
+  if (!items.length) {
+    document.getElementById('inv-list').innerHTML =
+      '<div style="color:var(--text3);font-size:13px;padding:12px;">' + t('no_items') + '</div>';
+    return;
+  }
+  document.getElementById('inv-list').innerHTML = items.map(function(i){
+    var maker = getInvMaker(i);
+    var days = daysSince(i.lastReceiptDate);
+    var tags = '';
+    if (i.locationId==='余り置場') tags += '<span class="tag tag-orange">📦'+t('tag_overage')+'</span> ';
+    else if (!i.stored&&i.currentQty>0) tags += '<span class="tag tag-purple">'+t('tag_unstored')+'</span> ';
+    else if (i.stored&&i.locationId) tags += '<span class="tag tag-cyan">📍'+i.locationId+t('unit_loc')+'</span> ';
+    if (i.currentQty===0&&!i.lastReceiptDate) tags += '<span class="tag tag-red">'+t('tag_waiting')+'</span> ';
+    else if (i.currentQty===0) tags += '<span class="tag tag-red">'+t('tag_zero')+'</span> ';
+    if (i.lastReceiptDate&&i.lastReceiptDate<=d30&&i.currentQty>0) tags += '<span class="tag tag-orange">'+t('tag_long')+'</span> ';
+    else if (i.lastReceiptDate&&i.lastReceiptDate<=d14&&i.currentQty>0) tags += '<span class="tag tag-purple">'+t('tag_mid')+'</span> ';
+    if (days>0&&i.lastReceiptDate&&i.currentQty>0) tags += '<span class="tag tag-gray">'+t('tag_days',{n:days})+'</span> ';
+    var zeroCls = i.currentQty === 0 ? ' done' : '';
+    return '<div class="list-item'+zeroCls+'" onclick="openInvDetail('+JSON.stringify(i).replace(/'/g,"&#39;")+')">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div class="item-code">'+i.supplyItemCode+'</div>'
+      + '<div class="item-name">'+i.itemName+'</div>'
+      + '<div class="tags" style="margin-top:4px;">'
+      + '<span class="tag tag-blue">'+maker+'</span> ' + tags + '</div>'
+      + '</div>'
+      + '<div style="text-align:right;margin-left:8px;white-space:nowrap;">'
+      + '<span class="item-qty '+(i.currentQty>0?'ok':'ng')+'">'+i.currentQty+'</span>'
+      + '<span class="item-qty-unit">'+t('unit_pcs')+'</span>'
+      + '</div></div></div>';
+  }).join('');
+}
+
+function openInvDetail(item) {
+  var rh = DB.receiptHistory.filter(function(r){ return r.supplyItemCode===item.supplyItemCode; }).slice(-5).reverse();
+  var ih = DB.issueHistory.filter(function(i){ return i.itemCode===item.itemCode||i.itemCode===item.supplyItemCode; }).slice(-5).reverse();
+  var days = daysSince(item.lastReceiptDate);
+  var locDisp = item.locationId==='余り置場' ? '📦 '+t('tag_overage')
+    : item.stored&&item.locationId ? item.locationId+t('unit_loc') : t('tag_unstored');
+  var rhHtml = rh.length ? rh.map(function(r){
+    return '<div class="hist-row"><div class="hist-date">'+r.receiptDate+'</div><div class="hist-qty">+'+r.receiptQty+t('unit_pcs')+'</div></div>';
+  }).join('') : '<div style="color:var(--text3);font-size:12px;">'+t('inv_detail_none')+'</div>';
+  var ihHtml = ih.length ? ih.map(function(r){
+    return '<div class="hist-row"><div class="hist-date">'+r.issueDate+'</div><div class="hist-qty">-'+r.issueQty+t('unit_pcs')+'</div></div>';
+  }).join('') : '<div style="color:var(--text3);font-size:12px;">'+t('inv_detail_none')+'</div>';
+  document.getElementById('inv-modal-body').innerHTML =
+    '<div class="result-grid">'
+    + '<div><div class="result-label">'+t('supply_code_label')+'</div><div class="result-value mono" style="font-size:12px;">'+item.supplyItemCode+'</div></div>'
+    + '<div><div class="result-label">'+t('inv_detail_stock')+'</div><div class="result-value big">'+(item.currentQty||0)+'</div></div>'
+    + '<div><div class="result-label">'+t('inv_detail_loc')+'</div><div class="result-value" style="font-size:13px;">'+locDisp+'</div></div>'
+    + '<div><div class="result-label">'+t('inv_detail_maker')+'</div><div class="result-value" style="font-size:13px;">'+getInvMaker(item)+'</div></div>'
+    + '<div style="grid-column:1/-1"><div class="result-label">'+t('col_name')+'</div><div style="font-size:14px;font-weight:700;">'+item.itemName+'</div></div>'
+    + '<div><div class="result-label">'+t('inv_detail_lot')+'</div><div class="result-value mono" style="font-size:11px;">'+(item.lotNo||'-')+'</div></div>'
+    + '<div><div class="result-label">'+t('col_receipt_date')+'</div><div class="result-value" style="font-size:12px;">'+(item.lastReceiptDate||'-')+'</div></div>'
+    + '</div>'
+    + '<div style="margin-top:10px;"><div class="card-label">'+t('inv_detail_receipt_hist')+'</div>'+rhHtml+'</div>'
+    + '<div style="margin-top:8px;"><div class="card-label">'+t('inv_detail_issue_hist')+'</div>'+ihHtml+'</div>';
+  document.getElementById('inv-modal').classList.add('open');
+}
+
+// 在庫スキャン検索
+var invScanMode = 'item';
+function activateInvScan(mode) {
+  invScanMode = mode;
+  document.getElementById('inv-scan-item-btn').style.display = 'none';
+  document.getElementById('inv-scan-loc-btn').style.display = 'none';
+  document.getElementById('inv-scan-area').style.display = 'block';
+  document.getElementById('inv-scan-label').textContent = t(mode==='item'?'inv_scan_item_label':'inv_scan_loc_label');
+  document.getElementById('inv-scan-hint').textContent = t(mode==='item'?'inv_scan_item_hint':'inv_scan_loc_hint');
+  setupScanner('scanner-inv', function(v){
+    deactivateInvScan();
+    var parsed = parseQR(v);
+    if (invScanMode==='loc') {
+      if (parsed.type!=='LOC') { showToast(t('err_not_loc_qr'),'error'); return; }
+      showLocInventory(parsed.locationId);
+    } else {
+      showItemInventory(parsed.supplyItemCode||v);
+    }
+  });
+}
+
+function deactivateInvScan() {
+  document.getElementById('inv-scan-item-btn').style.display = '';
+  document.getElementById('inv-scan-loc-btn').style.display = '';
+  document.getElementById('inv-scan-area').style.display = 'none';
+  var inp = document.getElementById('scanner-inv');
+  if (inp) { clearTimeout(inp._scanTimer); inp.value=''; }
+}
+
+function showItemInventory(code) {
+  var items = DB.inventory.filter(function(i){ return i.supplyItemCode===code||i.itemCode===code; });
+  var related = DB.workOrders.filter(function(o){
+    return !isIssued(o.WorkOrderNo) && (o.ItemCode===code||o.SupplyItemCode===code||
+      DB.inventory.some(function(i){return i.supplyItemCode===code&&i.itemCode===o.ItemCode;}));
+  });
+  var dueDateMap = {};
+  related.forEach(function(o){ dueDateMap[o.DueDate]=(dueDateMap[o.DueDate]||0)+1; });
+  var itemsHtml = items.length ? items.map(function(i){
+    var loc = i.locationId==='余り置場'?'📦'+t('tag_overage'):i.stored&&i.locationId?'📍'+i.locationId+t('unit_loc'):t('tag_unstored');
+    return '<div style="display:flex;justify-content:space-between;padding:7px;background:var(--surface2);border-radius:6px;margin-bottom:4px;">'
+      + '<div><div style="font-size:11px;font-weight:700;color:var(--text3);">'+loc+'</div>'
+      + '<div style="font-size:11px;color:var(--text3);">'+t('col_receipt_date')+': '+(i.lastReceiptDate||'-')+'</div></div>'
+      + '<div style="font-size:20px;font-weight:800;color:var(--blue2);">'+i.currentQty+'<span style="font-size:11px;">'+t('unit_pcs')+'</span></div>'
+      + '</div>';
+  }).join('') : '<div style="color:var(--text3);font-size:13px;padding:8px;">'+t('inv_no_stock')+'</div>';
+  var dueHtml = Object.keys(dueDateMap).sort().map(function(d){
+    var col=d===TODAY?'var(--green2)':d<TODAY?'var(--red2)':'var(--text2)';
+    return '<span style="background:var(--surface2);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;color:'+col+';">'+formatDate(d)+' '+dueDateMap[d]+'件</span>';
+  }).join(' ');
+  var el = document.getElementById('inv-scan-result');
+  el.style.display = 'block';
+  el.innerHTML = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+    + '<div><div class="item-code">'+code+'</div><div style="font-size:11px;color:var(--text3);">'+t('inv_detail_stock')+': '+items.length+'件</div></div>'
+    + '<button onclick="document.getElementById(\'inv-scan-result\').style.display=\'none\'" style="background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;">✕</button>'
+    + '</div>'+itemsHtml
+    + (related.length?'<div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;"><div class="result-label">'+t('issue_due_label')+'</div><div style="margin-top:4px;">'+dueHtml+'</div></div>':'<div style="font-size:12px;color:var(--text3);padding-top:6px;border-top:1px solid var(--border);">'+t('no_issue_plan')+'</div>')
+    + '</div>';
+}
+
+function showLocInventory(locId) {
+  var items = DB.inventory.filter(function(i){ return String(i.locationId)===String(locId)&&i.currentQty>0; });
+  var el = document.getElementById('inv-scan-result');
+  el.style.display = 'block';
+  var itemsHtml = items.length ? items.map(function(i){
+    var rel = DB.workOrders.filter(function(o){
+      return !isIssued(o.WorkOrderNo)&&(o.ItemCode===i.itemCode||o.SupplyItemCode===i.supplyItemCode);
+    });
+    return '<div style="padding:7px;background:var(--surface2);border-radius:6px;margin-bottom:4px;'+(rel.length?'border-left:3px solid var(--green2);':'')+'">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+      + '<div><div class="item-code">'+i.supplyItemCode+'</div><div class="item-name">'+i.itemName+'</div></div>'
+      + '<div style="font-size:20px;font-weight:800;color:var(--blue2);">'+i.currentQty+'<span style="font-size:11px;">'+t('unit_pcs')+'</span></div>'
+      + '</div>'+(rel.length?'<div style="font-size:11px;color:var(--green2);margin-top:3px;">'+t('inv_has_issue',{n:rel.length})+'</div>':'')
+      + '</div>';
+  }).join('') : '<div style="color:var(--text3);font-size:13px;padding:8px;">'+t('inv_no_stock')+'</div>';
+  el.innerHTML = '<div class="card">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+    + '<div style="font-size:15px;font-weight:800;">📍 '+locId+t('unit_loc')+t('loc_title')+'</div>'
+    + '<button onclick="document.getElementById(\'inv-scan-result\').style.display=\'none\'" style="background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;">✕</button>'
+    + '</div>'+itemsHtml+'</div>';
+}
+
+// ════════════════════════════════════════════════════════
+// ダッシュボード
+// ════════════════════════════════════════════════════════
+function renderDashboard() {
+  var rToday = DB.receiptHistory.filter(function(r){ return r.receiptDate===TODAY; }).length;
+  var rTotal = DB.receiptOrders.filter(function(r){ return r.DeliveryDate===TODAY; }).length;
+  var wToday = DB.workOrders.filter(function(o){ return o.DueDate===TOMORROW; });
+  var wDone  = wToday.filter(function(o){ return isIssued(o.WorkOrderNo); }).length;
+  var wTotal = wToday.length;
+  var invItems = DB.inventory.filter(function(i){ return i.currentQty>0; }).length;
+  var pending  = DB.workOrders.filter(function(o){ return !isIssued(o.WorkOrderNo)&&o.DueDate<=TODAY; }).length;
+  document.getElementById('dash-updated').textContent = t('dash_updated') + new Date().toTimeString().slice(0,5);
+  document.getElementById('dash-stats').innerHTML =
+    '<div class="stat-card"><div class="stat-num" style="color:var(--green2);">'+rToday+'</div>'
+    + '<div class="stat-sub">/ '+rTotal+' '+t('dashboard_count_unit')+'</div><div class="stat-label">'+t('dash_receipt')+'</div></div>'
+    + '<div class="stat-card"><div class="stat-num" style="color:var(--blue2);">'+wDone+'</div>'
+    + '<div class="stat-sub">/ '+wTotal+' 件</div><div class="stat-label">'+t('dash_issue')+'</div></div>'
+    + '<div class="stat-card"><div class="stat-num">'+invItems+'</div><div class="stat-label">'+t('dash_items')+'</div></div>'
+    + '<div class="stat-card"><div class="stat-num" style="color:var(--orange2);">'+pending+'</div><div class="stat-label">'+t('dash_pending')+'</div></div>';
+  // メーカー別バーグラフ
+  var MAKERS = ['ホンダ','スズキ','ニッサン','ダイハツ','トヨタ','ミツビシ'];
+  var MAKER_COLORS = {
+    'ホンダ':'#4fc3f7','スズキ':'#fff176','ニッサン':'#ffb74d',
+    'ダイハツ':'#f48fb1','トヨタ':'#81c784','ミツビシ':'#b0bec5'
+  };
+  // 全依頼書のメーカーを対象（日付フィルターなし）
+  var allPending = DB.workOrders;
+  var makerHtml = MAKERS.map(function(m){
+    var total = allPending.filter(function(o){return o.Maker===m;}).length;
+    if (!total) return '';
+    var done  = allPending.filter(function(o){return o.Maker===m&&isIssued(o.WorkOrderNo);}).length;
+    var pct = Math.round(done/total*100);
+    var barColor = MAKER_COLORS[m] || 'var(--blue2)';
+    return '<div style="margin-bottom:8px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:3px;">'
+      + '<span style="font-weight:700;display:flex;align-items:center;gap:6px;">'
+      + '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+barColor+';"></span>'
+      + m+'</span>'
+      + '<span style="color:var(--text3);">'+done+'/'+total+' ('+pct+'%)</span></div>'
+      + '<div class="prog-wrap"><div style="height:100%;border-radius:4px;width:'+pct+'%;background:'+barColor+';transition:width .3s;"></div></div>'
+      + '</div>';
+  }).join('');
+  document.getElementById('dash-maker-chart').innerHTML = makerHtml || '<div style="color:var(--text3);font-size:12px;">'+t('no_items')+'</div>';
+  // 日別グラフ（作業依頼書の納入日別）
+  var allDueDates = [...new Set(DB.workOrders.map(function(o){return o.DueDate;}))].sort();
+  // 今日の前後3日程度に絞る
+  var d7before = new Date(TODAY.replace(/\//g,'-'));
+  d7before.setDate(d7before.getDate()-7);
+  var dBefore = d7before.toISOString().split('T')[0].replace(/-/g,'/');
+  var d14after = new Date(TODAY.replace(/\//g,'-'));
+  d14after.setDate(d14after.getDate()+14);
+  var dAfter = d14after.toISOString().split('T')[0].replace(/-/g,'/');
+  var visibleDates = allDueDates.filter(function(d){return d>=dBefore&&d<=dAfter;});
+  var dailyHtml = visibleDates.map(function(d){
+    var tot = DB.workOrders.filter(function(o){return o.DueDate===d;}).length;
+    var done= DB.workOrders.filter(function(o){return o.DueDate===d&&isIssued(o.WorkOrderNo);}).length;
+    if (!tot) return '';
+    var pct = Math.round(done/tot*100);
+    // 納入日が今日より過去→完了色(緑)、今日+2日以内→青、それ以降→灰
+    var barColor = d<TODAY?'var(--green2)':d===TOMORROW?'var(--blue2)':'var(--text3)';
+    // ラベル
+    var lbl;
+    if      (d===DAY2AGO)   lbl=t('day2ago')+'（'+d.slice(5)+'）';
+    else if (d===YESTERDAY) lbl=t('yesterday')+'（'+d.slice(5)+'）';
+    else if (d===TODAY)     lbl=t('today')+'（'+d.slice(5)+'）';
+    else if (d===TOMORROW)  lbl='納入日 '+d.slice(5)+'（作業中）';
+    else                    lbl='納入日 '+d.slice(5);
+    return '<div style="margin-bottom:8px;">'
+      + '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">'
+      + '<span style="font-weight:700;">'+lbl+'</span>'
+      + '<span style="color:var(--text3);">'+done+'/'+tot+' ('+pct+'%)</span></div>'
+      + '<div class="prog-wrap"><div style="height:100%;border-radius:4px;width:'+pct+'%;background:'+barColor+';transition:width .3s;"></div></div>'
+      + '</div>';
+  }).join('');
+  document.getElementById('dash-daily-chart').innerHTML = dailyHtml || '<div style="color:var(--text3);font-size:12px;">'+t('no_items')+'</div>';
+}
+
+
+// ════════════════════════════════════════════════════════
+// 管理
+// ════════════════════════════════════════════════════════
+function importReceiptOrders(inp) {
+  var f = inp.files[0]; if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var wb = XLSX.read(e.target.result, {type:'array'});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, {header:1});
+      var headers = rows[0].map(function(h){ return String(h||''); });
+      DB.receiptOrders = rows.slice(1).filter(function(r){ return r[0]; }).map(function(r){
+        var d = {}; headers.forEach(function(h,i){ d[h] = r[i] !== undefined ? r[i] : ''; }); return d;
+      });
+      saveDB();
+      showToast('✓ ' + DB.receiptOrders.length + t('toast_receipt_imported'), 'success');
+    } catch(ex) { showToast(t('err_import') + ': ' + ex.message, 'error'); }
+    inp.value = '';
+  };
+  reader.readAsArrayBuffer(f);
+}
+
+function importWorkOrders(inp) {
+  var files = Array.from(inp.files); if (!files.length) return;
+  DB.workOrders = [];
+  var loaded = 0;
+  files.forEach(function(f) {
+    var fname = f.name.replace('.xlsx','').replace(/\s+/g,'');
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var wb = XLSX.read(e.target.result, {type:'array'});
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(ws, {header:1});
+        var hi = -1;
+        rows.forEach(function(r,i){ if(r.some(function(c){return String(c||'').includes('作業指示');})) hi=i; });
+        if (hi < 0) { loaded++; if(loaded===files.length) done(); return; }
+        var headers = rows[hi].map(function(h){ return String(h||''); });
+        rows.slice(hi+1).forEach(function(r){
+          if (!r[0]) return;
+          var d = {}; headers.forEach(function(h,i){ d[h]=r[i]!==undefined?r[i]:''; });
+          var wno = String(d['作業指示No']||'').trim();
+          if (!wno) return;
+          // 日付はファイル名から推定（5.14ホンダ.xlsx → 2026/05/14）
+          var dateMatch = fname.match(/(\d+)\.(\d+)/);
+          var due = dateMatch ? '2026/'+String(dateMatch[1]).padStart(2,'0')+'/'+String(dateMatch[2]).padStart(2,'0') : TODAY;
+          var maker = fname.replace(/\d+\.\d+/g,'').replace('追加分','');
+          var makerMap = {'ホンダ':'ホンダ','スズキ':'スズキ','トヨタ':'トヨタ','ニッサン':'ニッサン','ダイハツ':'ダイハツ','ミツビシ':'ミツビシ'};
+          var m = 'その他';
+          Object.keys(makerMap).forEach(function(k){ if(maker.includes(k)) m=makerMap[k]; });
+          DB.workOrders.push({
+            WorkOrderNo: wno, ItemCode: String(d['品目']||'').trim(),
+            ItemName: String(d['品名']||'').trim(),
+            OrderQty: parseInt(d['数量']||0)||0,
+            DueDate: due, Maker: m,
+            SupplyItemCode: String(d['品目']||'').trim(),
+          });
+        });
+      } catch(ex) { showToast(t('err_import')+': '+ex.message, 'error'); }
+      loaded++;
+      if (loaded === files.length) done();
+    };
+    reader.readAsArrayBuffer(f);
+  });
+  function done() {
+    saveDB(); renderIssueDateOptions(); renderIssueList();
+    showToast('✓ ' + DB.workOrders.length + t('toast_work_imported',{n:files.length}), 'success');
+    inp.value = '';
+  }
+}
+
+function importMaster(inp) {
+  var f = inp.files[0]; if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var wb = XLSX.read(e.target.result, {type:'array'});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, {header:1});
+      DB.masterItems = rows.slice(2).filter(function(r){ return r[1]; }).map(function(r){
+        return { itemCode: String(r[1]||''), destination: String(r[9]||''), supplyCode1: String(r[14]||'') };
+      });
+      // MASTER_ITEM_TO_MAKER を更新
+      DB.masterItems.forEach(function(item){
+        var dest = item.destination;
+        var m = 'その他';
+        if (/本田|ホンダ|HONDA/i.test(dest)) m='ホンダ';
+        else if (/スズキ|SUZUKI/i.test(dest)) m='スズキ';
+        else if (/日産|ニッサン|NISSAN/i.test(dest)) m='ニッサン';
+        else if (/ダイハツ|DAIHATSU/i.test(dest)) m='ダイハツ';
+        else if (/トヨタ|TOYOTA/i.test(dest)) m='トヨタ';
+        else if (/三菱|ミツビシ|MITSUBISHI/i.test(dest)) m='ミツビシ';
+        if (item.itemCode && m !== 'その他') MASTER_ITEM_TO_MAKER[item.itemCode] = m;
+      });
+      saveDB();
+      showToast('✓ ' + DB.masterItems.length + t('toast_master_imported'), 'success');
+    } catch(ex) { showToast(t('err_import')+': '+ex.message, 'error'); }
+    inp.value = '';
+  };
+  reader.readAsArrayBuffer(f);
+}
+
+function exportLongStock() {
+  var now = Date.now();
+  var d14 = new Date(now-7*86400000).toISOString().split('T')[0].replace(/-/g,'/');
+  var items = DB.inventory.filter(function(i){ return i.currentQty>0&&i.lastReceiptDate&&i.lastReceiptDate<=d14; });
+  items.sort(function(a,b){ return (a.lastReceiptDate||'').localeCompare(b.lastReceiptDate||''); });
+  var rows = [[t('col_code'),t('col_name'),t('col_maker'),t('col_loc'),t('col_qty'),t('col_receipt_date'),t('col_days'),t('col_section')]];
+  var d30 = new Date(now-14*86400000).toISOString().split('T')[0].replace(/-/g,'/');
+  items.forEach(function(i){
+    var days = daysSince(i.lastReceiptDate);
+    var sec = i.lastReceiptDate<=d30 ? t('section_long') : t('section_mid');
+    rows.push([i.supplyItemCode, i.itemName, getInvMaker(i),
+      i.locationId==='余り置場'?t('tag_overage'):i.locationId+t('unit_loc'),
+      i.currentQty, i.lastReceiptDate, days, sec]);
+  });
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), t('sheet_midlong'));
+  XLSX.writeFile(wb, t('sheet_midlong')+'_'+TODAY.replace(/\//g,'')+'.xlsx');
+  showToast(t('toast_excel_done'), 'success');
+}
+
+function exportAllStock() {
+  var rows = [[t('col_code'),t('col_name'),t('col_maker'),t('col_loc'),t('col_qty'),t('col_receipt_date'),t('col_last_issue')]];
+  DB.inventory.forEach(function(i){
+    rows.push([i.supplyItemCode, i.itemName, getInvMaker(i),
+      i.locationId==='余り置場'?t('tag_overage'):i.locationId?i.locationId+t('unit_loc'):t('tag_unstored'),
+      i.currentQty, i.lastReceiptDate||'', i.lastIssueDate||'']);
+  });
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), t('sheet_all'));
+  XLSX.writeFile(wb, t('sheet_all')+'_'+TODAY.replace(/\//g,'')+'.xlsx');
+  showToast(t('toast_excel_done'), 'success');
+}
+
+// 在庫調整
+var adjTarget = null;
+function adjSearch(q) {
+  var el = document.getElementById('adj-search-result');
+  if (!q.trim()) { el.innerHTML=''; document.getElementById('adj-form').style.display='none'; return; }
+  var matches = DB.inventory.filter(function(i){
+    return (i.supplyItemCode||'').toLowerCase().includes(q.toLowerCase());
+  }).slice(0,5);
+  el.innerHTML = matches.map(function(i){
+    return '<div class="list-item" style="padding:8px;" onclick="selectAdj(\''+i.supplyItemCode+'\')">'
+      + '<div class="item-code">'+i.supplyItemCode+'</div>'
+      + '<div class="item-name">'+i.itemName+' / '+t('inv_detail_stock')+' '+i.currentQty+t('unit_pcs')
+      + (i.locationId?' / '+(i.locationId==='余り置場'?t('tag_overage'):i.locationId+t('unit_loc')):'')+'</div></div>';
+  }).join('');
+}
+function selectAdj(code) {
+  adjTarget = DB.inventory.find(function(i){ return i.supplyItemCode===code; });
+  if (!adjTarget) return;
+  document.getElementById('adj-search-result').innerHTML='';
+  document.getElementById('adj-search-input').value='';
+  document.getElementById('adj-current-qty').textContent = adjTarget.currentQty + t('unit_pcs');
+  document.getElementById('adj-new-qty').value = adjTarget.currentQty;
+  document.getElementById('adj-form').style.display='block';
+}
+function submitAdj() {
+  if (!adjTarget) return;
+  var newQty = parseInt(document.getElementById('adj-new-qty').value);
+  if (isNaN(newQty)||newQty<0) { showToast(t('err_qty'),'error'); return; }
+  var reason = document.getElementById('adj-reason').value;
+  var oldQty = adjTarget.currentQty;
+  var inv = DB.inventory.find(function(i){ return i.supplyItemCode===adjTarget.supplyItemCode; });
+  if (inv) { inv.currentQty=newQty; inv.updatedAt=new Date().toISOString(); }
+  DB.adjustHistory.push({date:TODAY, code:adjTarget.supplyItemCode, oldQty:oldQty, newQty:newQty, reason:reason});
+  saveDB();
+  showToast(t('toast_adj_done')+': '+oldQty+'→'+newQty+t('unit_pcs'), 'success');
+  adjTarget=null; document.getElementById('adj-form').style.display='none';
+  document.getElementById('adj-new-qty').value='';
+}
+
+function exportData() {
+  var blob = new Blob([JSON.stringify(DB)], {type:'application/json'});
+  var a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='roki_wms_'+TODAY.replace(/\//g,'')+'.json'; a.click();
+}
+function importData(inp) {
+  var f = inp.files[0]; if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var d = JSON.parse(e.target.result);
+      Object.keys(d).forEach(function(k){ if(DB[k]!==undefined) DB[k]=d[k]; });
+      saveDB(); init();
+      showToast(t('toast_restored'), 'success');
+    } catch(ex) { showToast(t('err_import')+': '+ex.message, 'error'); }
+    inp.value='';
+  };
+  reader.readAsText(f);
+}
+function confirmClear() {
+  if (!confirm(t('confirm_clear'))) return;
+  Object.keys(DB).forEach(function(k){ DB[k]=[]; });
+  localStorage.removeItem('roki_wms');
+  init(); showToast(t('toast_cleared'), 'error');
+}
+
+// ════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════
+function init() {
+  updateReceiptCount(); renderReceiptHistory();
+  updateStoreCount(); renderStoreHistory();
+  renderIssueDateOptions(); renderIssueList();
+  renderInventory();
+  applyLang();
+  // 受入タブのスキャナー起動
+  setupScanner('scanner-receipt', function(v){ handleReceiptQR(parseQR(v)); focusScanner('scanner-receipt'); });
+}
+
+
+// ════════════════════════════════════════════════════════
+// INIT（本番モード：実際の今日の日付・LocalStorage復元）
+// ════════════════════════════════════════════════════════
+var MASTER_ITEM_TO_MAKER = {};
+
+var _td = new Date();
+function _fmt(d){ return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0'); }
+var TODAY     = _fmt(_td);
+var _yd=new Date(_td); _yd.setDate(_yd.getDate()-1); var YESTERDAY=_fmt(_yd);
+var _d2=new Date(_td); _d2.setDate(_d2.getDate()-2); var DAY2AGO=_fmt(_d2);
+var _tm=new Date(_td); _tm.setDate(_tm.getDate()+1); var TOMORROW=_fmt(_tm);
+var _d14=new Date(_td); _d14.setDate(_d14.getDate()-14); var DAY14AGO=_fmt(_d14);
+var _d35=new Date(_td); _d35.setDate(_d35.getDate()-35); var DAY35AGO=_fmt(_d35);
+
+loadDB();
+init();
+
+
+// ════════════════════════════════════════════════════════
+// Google Spreadsheet 連携 (GAS)
+// ════════════════════════════════════════════════════════
+var GAS_URL = localStorage.getItem('roki_gas_url') || '';
+var GAS_ENABLED = !!GAS_URL;
+
+function openGasModal() {
+  document.getElementById('gas-url-input').value = GAS_URL;
+  var s = document.getElementById('gas-status');
+  s.style.display = 'none';
+  updateGasStatusBtn();
+  document.getElementById('gas-modal').classList.add('open');
+}
+
+function saveGasUrl() {
+  var url = document.getElementById('gas-url-input').value.trim();
+  GAS_URL = url;
+  GAS_ENABLED = !!url;
+  localStorage.setItem('roki_gas_url', url);
+  updateGasStatusBtn();
+  closeModal('gas-modal');
+  showToast(url ? '☁️ GAS URLを保存しました' : 'GAS連携を無効にしました', 'success');
+}
+
+function updateGasStatusBtn() {
+  var btn = document.getElementById('gas-status-btn');
+  if (!btn) return;
+  if (GAS_ENABLED) {
+    btn.style.background = 'rgba(16,185,129,.2)';
+    btn.style.borderColor = 'var(--green2)';
+    btn.style.color = 'var(--green2)';
+    btn.textContent = '☁️ 連携中';
+  } else {
+    btn.style.background = 'var(--surface2)';
+    btn.style.borderColor = 'var(--border)';
+    btn.style.color = 'var(--text3)';
+    btn.textContent = '☁️ 連携設定';
+  }
+}
+
+function testGasConnection() {
+  var url = document.getElementById('gas-url-input').value.trim();
+  if (!url) { showGasStatus('URLを入力してください', 'error'); return; }
+  showGasStatus('接続テスト中...', 'info');
+  gasPost(url, {action:'ping', timestamp: new Date().toISOString()})
+    .then(function(r) { showGasStatus('✓ 接続成功: '+JSON.stringify(r), 'success'); })
+    .catch(function(e) { showGasStatus('✗ 接続失敗: '+e.message, 'error'); });
+}
+
+function showGasStatus(msg, type) {
+  var el = document.getElementById('gas-status');
+  el.textContent = msg;
+  el.style.display = 'block';
+  var colors = {success:'rgba(27,94,32,.3)',error:'rgba(183,28,28,.3)',info:'rgba(63,81,181,.3)'};
+  el.style.background = colors[type] || colors.info;
+  el.style.color = type==='success'?'var(--green2)':type==='error'?'var(--red2)':'var(--blue2)';
+}
+
+function gasPost(url, data) {
+  return fetch(url, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  }).then(function() {
+    return {ok: true};
+  });
+}
+
+function gasSend(action, data) {
+  if (!GAS_ENABLED || !GAS_URL) return;
+  var payload = Object.assign({action: action, timestamp: new Date().toISOString()}, data);
+  gasPost(GAS_URL, payload).catch(function(e) {
+    console.warn('GAS送信失敗:', e.message);
+  });
+}
+
+function syncAllToGas() {
+  if (!GAS_URL) { showGasStatus('URLを入力してください', 'error'); return; }
+  showGasStatus('同期中...', 'info');
+  var url = document.getElementById('gas-url-input').value.trim() || GAS_URL;
+  var payload = {
+    action: 'syncAll',
+    timestamp: new Date().toISOString(),
+    inventory: DB.inventory,
+    receiptHistory: DB.receiptHistory,
+    issueHistory: DB.issueHistory,
+    storeHistory: DB.storeHistory,
+    workOrders: DB.workOrders,
+    defects: DB.defects || [],
+  };
+  gasPost(url, payload)
+    .then(function() { showGasStatus('✓ 全データ同期完了', 'success'); })
+    .catch(function(e) { showGasStatus('✗ 同期失敗: '+e.message, 'error'); });
+}
+
+// 起動時にGAS URLを復元
+(function() {
+  GAS_URL = localStorage.getItem('roki_gas_url') || '';
+  GAS_ENABLED = !!GAS_URL;
+  setTimeout(updateGasStatusBtn, 500);
+})();
+
+// ════ 仕損品管理 ════
+var defectPriceTargetId=null;
+function openDefectModal(pre){var pad=function(n){return String(n).padStart(2,'0');};var n=new Date();document.getElementById('defect-report-date').value=n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate());['defect-roki-date','defect-delivery-date'].forEach(function(id){document.getElementById(id).value='';});['defect-code','defect-name','defect-maker','defect-reporter','defect-packing','defect-situation'].forEach(function(id){document.getElementById(id).value='';});document.getElementById('defect-phenomenon').value='';document.getElementById('defect-phenomenon-other').style.display='none';document.getElementById('defect-phenomenon-other').value='';document.getElementById('defect-qty').value='';var sel=document.getElementById('defect-reporter-select');sel.innerHTML='<option value="">-- 選択または手入力 --</option>';if(DB.employees&&DB.employees.length)DB.employees.forEach(function(e){sel.innerHTML+='<option value="'+e.name+'">'+e.name+'</option>';});if(pre){var inv=DB.inventory.find(function(i){return i.supplyItemCode===pre||i.itemCode===pre;});if(inv){document.getElementById('defect-code').value=inv.supplyItemCode;document.getElementById('defect-name').value=inv.itemName||'';document.getElementById('defect-maker').value=getInvMaker(inv);}}document.getElementById('defect-modal').classList.add('open');}
+function onDefectReporterSelect(v){if(v)document.getElementById('defect-reporter').value=v;}
+function onDefectPhenomenon(v){var o=document.getElementById('defect-phenomenon-other');o.style.display=v==='その他'?'block':'none';if(v!=='その他')o.value='';}
+function activateDefectScan(){document.getElementById('defect-scan-btn').style.display='none';document.getElementById('defect-scan-area').style.display='block';setupScanner('scanner-defect',function(raw){deactivateDefectScan();var p=parseQR(raw),code=p.supplyItemCode||raw.trim();var inv=DB.inventory.find(function(i){return i.supplyItemCode===code||i.itemCode===code;});document.getElementById('defect-code').value=code;document.getElementById('defect-name').value=inv?inv.itemName:'';document.getElementById('defect-maker').value=inv?getInvMaker(inv):'';showToast('✓ '+code+' 読込完了','success');});}
+function deactivateDefectScan(){document.getElementById('defect-scan-btn').style.display='';document.getElementById('defect-scan-area').style.display='none';var i=document.getElementById('scanner-defect');if(i){clearTimeout(i._scanTimer);i.value='';}}
+function openDefectManual(){var c=prompt('部品番号を入力してください');if(!c)return;var inv=DB.inventory.find(function(i){return i.supplyItemCode===c||i.itemCode===c;});document.getElementById('defect-code').value=c;document.getElementById('defect-name').value=inv?inv.itemName:'';document.getElementById('defect-maker').value=inv?getInvMaker(inv):'';}
+function submitDefect(){var code=document.getElementById('defect-code').value.trim();var qty=parseInt(document.getElementById('defect-qty').value);var reporter=document.getElementById('defect-reporter').value.trim();var phenom=document.getElementById('defect-phenomenon').value;if(phenom==='その他')phenom=document.getElementById('defect-phenomenon-other').value.trim()||'その他';if(!code){showToast('部品番号を入力してください','error');return;}if(!qty||qty<1){showToast('発生数量を入力してください','error');return;}if(!reporter){showToast('報告者を入力してください','error');return;}if(!phenom){showToast('事象を選択してください','error');return;}if(!DB.defects)DB.defects=[];DB.defects.push({id:'DEF-'+Date.now(),reportDate:document.getElementById('defect-report-date').value||TODAY,reporter:reporter,itemCode:code,itemName:document.getElementById('defect-name').value.trim(),maker:document.getElementById('defect-maker').value.trim(),packingCode:document.getElementById('defect-packing').value.trim(),phenomenon:phenom,situation:document.getElementById('defect-situation').value.trim(),deliveryDate:document.getElementById('defect-delivery-date').value||'',qty:qty,rokiDate:document.getElementById('defect-roki-date').value||'',unitPrice:0,createdAt:new Date().toISOString()});var inv=DB.inventory.find(function(i){return i.supplyItemCode===code||i.itemCode===code;});if(inv&&inv.currentQty>=qty){inv.currentQty-=qty;inv.updatedAt=new Date().toISOString();}saveDB();
+  gasSend('defect', DB.defects[DB.defects.length-1]);
+  closeModal('defect-modal');renderInventory();showToast('🔴 仕損品登録完了: '+code+' '+qty+'個','success');}
+function openDefectList(){if(!DB.defects||!DB.defects.length){showToast('仕損品データがありません','info');return;}var months=[...new Set(DB.defects.map(function(d){return d.reportDate.slice(0,7);}))].sort().reverse();var sel=document.getElementById('defect-month-filter');sel.innerHTML='<option value="all">すべての月</option>'+months.map(function(m){return '<option value="'+m+'">'+m+'</option>';}).join('');renderDefectList();document.getElementById('defect-list-modal').classList.add('open');}
+function renderDefectList(){var month=document.getElementById('defect-month-filter').value;var list=(DB.defects||[]).filter(function(d){return month==='all'||d.reportDate.startsWith(month);}).slice().reverse();var tot=list.reduce(function(s,d){return s+(d.unitPrice||0)*d.qty;},0);var hasP=list.some(function(d){return d.unitPrice>0;});document.getElementById('defect-summary').innerHTML='<div style="display:flex;justify-content:space-between;"><div><span style="font-size:12px;color:var(--text3);">件数：</span><span style="font-size:16px;font-weight:800;">'+list.length+'件</span></div>'+(hasP?'<div><span style="font-size:12px;color:var(--text3);">仕損費合計：</span><span style="font-size:16px;font-weight:800;color:var(--red2);">¥'+tot.toLocaleString()+'</span></div>':'<div style="font-size:11px;color:var(--text3);">※単価入力で仕損費が表示されます</div>')+'</div>';if(!list.length){document.getElementById('defect-list-body').innerHTML='<div style="color:var(--text3);font-size:13px;padding:12px;">該当データがありません</div>';return;}document.getElementById('defect-list-body').innerHTML=list.map(function(d){var cost=d.unitPrice>0?'¥'+(d.unitPrice*d.qty).toLocaleString():'単価未入力';var cc=d.unitPrice>0?'var(--red2)':'var(--text3)';var rb=d.rokiDate?'<span style="background:rgba(27,94,32,.3);color:var(--green2);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;">ROKI報告済 '+d.rokiDate+'</span>':'<span style="background:rgba(183,28,28,.2);color:var(--red2);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;">ROKI未報告</span>';return '<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:6px;">'+'<div style="display:flex;justify-content:space-between;margin-bottom:6px;">'+'<div><div style="font-size:12px;font-weight:800;color:var(--blue2);font-family:monospace;">'+d.itemCode+'</div><div style="font-size:11px;color:var(--text2);">'+d.itemName+'</div></div>'+'<div style="text-align:right;"><div style="font-size:16px;font-weight:800;color:var(--red2);">'+d.qty+'個</div><div style="font-size:11px;color:'+cc+';">'+cost+'</div></div></div>'+'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">'+'<span style="background:var(--surface2);border-radius:4px;padding:2px 6px;font-size:10px;">📅 '+d.reportDate+'</span>'+'<span style="background:var(--surface2);border-radius:4px;padding:2px 6px;font-size:10px;">👤 '+d.reporter+'</span>'+'<span style="background:rgba(183,28,28,.2);color:var(--red2);border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;">'+d.phenomenon+'</span>'+(d.deliveryDate?'<span style="background:var(--surface2);border-radius:4px;padding:2px 6px;font-size:10px;">搬入日: '+d.deliveryDate+'</span>':'')+rb+'</div>'+(d.situation?'<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">状態: '+d.situation+'</div>':'')+'<div style="display:flex;gap:6px;margin-top:6px;">'+'<button data-did="'+d.id+'" onclick="openDefectPrice(this.dataset.did)" style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:5px;border-radius:6px;font-size:11px;cursor:pointer;">💰 単価入力</button>'+'<button data-did="'+d.id+'" onclick="openDefectEditRoki(this.dataset.did)" style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:5px;border-radius:6px;font-size:11px;cursor:pointer;">📋 ROKI報告日</button>'+'</div></div>';}).join('');}
+function openDefectPrice(id){defectPriceTargetId=id;var d=(DB.defects||[]).find(function(x){return x.id===id;});if(!d)return;document.getElementById('defect-price-target-label').textContent=d.itemCode+' / '+d.itemName+' ('+d.qty+'個)';document.getElementById('defect-price-input').value=d.unitPrice||'';document.getElementById('defect-price-area').style.display='block';document.getElementById('defect-price-input').focus();}
+function saveDefectPrice(){if(!defectPriceTargetId)return;var p=parseInt(document.getElementById('defect-price-input').value);if(isNaN(p)||p<0){showToast('正しい単価を入力してください','error');return;}var d=(DB.defects||[]).find(function(x){return x.id===defectPriceTargetId;});if(d)d.unitPrice=p;saveDB();document.getElementById('defect-price-area').style.display='none';defectPriceTargetId=null;renderDefectList();showToast('単価を保存しました: ¥'+p.toLocaleString(),'success');}
+function openDefectEditRoki(id){var d=(DB.defects||[]).find(function(x){return x.id===id;});if(!d)return;var date=prompt('ROKIへの報告日を入力（YYYY-MM-DD）',d.rokiDate||'');if(date===null)return;d.rokiDate=date;saveDB();renderDefectList();showToast(date?'ROKI報告日を登録: '+date:'ROKI報告日を削除しました','success');}
+function exportDefects(){if(!DB.defects||!DB.defects.length){showToast('データがありません','error');return;}var month=document.getElementById('defect-month-filter').value;var list=DB.defects.filter(function(d){return month==='all'||d.reportDate.startsWith(month);});var rows=[['報告日','報告者','部品番号','部品名','支給メーカー','包材記号','事象','事象発見状態','得意先搬入日','発生数量','単価','仕損費','ROKI報告日']];list.forEach(function(d){rows.push([d.reportDate,d.reporter,d.itemCode,d.itemName,d.maker,d.packingCode||'',d.phenomenon,d.situation||'',d.deliveryDate||'',d.qty,d.unitPrice||'',(d.unitPrice||0)*d.qty,d.rokiDate||'']);});var t=list.reduce(function(s,d){return s+(d.unitPrice||0)*d.qty;},0);rows.push(['','','','','','','','','','合計','',t,'']);var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'仕損品一覧');XLSX.writeFile(wb,'仕損品報告_'+(month==='all'?'全期間':month.replace('-',''))+'.xlsx');showToast('Excelをダウンロードしました','success');}
+
+</script>
+</body>
+</html>
