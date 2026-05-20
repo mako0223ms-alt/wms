@@ -2422,41 +2422,26 @@ function openDefectEditRoki(id){var d=(DB.defects||[]).find(function(x){return x
 function exportDefects(){if(!DB.defects||!DB.defects.length){showToast('データがありません','error');return;}var month=document.getElementById('defect-month-filter').value;var list=DB.defects.filter(function(d){return month==='all'||d.reportDate.startsWith(month);});var rows=[['報告日','報告者','部品番号','部品名','支給メーカー','包材記号','事象','事象発見状態','得意先搬入日','発生数量','単価','仕損費','ROKI報告日']];list.forEach(function(d){rows.push([d.reportDate,d.reporter,d.itemCode,d.itemName,d.maker,d.packingCode||'',d.phenomenon,d.situation||'',d.deliveryDate||'',d.qty,d.unitPrice||'',(d.unitPrice||0)*d.qty,d.rokiDate||'']);});var t=list.reduce(function(s,d){return s+(d.unitPrice||0)*d.qty;},0);rows.push(['','','','','','','','','','合計','',t,'']);var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'仕損品一覧');XLSX.writeFile(wb,'仕損品報告_'+(month==='all'?'全期間':month.replace('-',''))+'.xlsx');showToast('Excelをダウンロードしました','success');}
 
 </script>
-  // ─── ユニテック製スキャナー 誤作動・分割防止パッチ ───
+<script>
 (function() {
-  // HTML内にあるすべての非表示スキャナーインプットのID
   const scannerIds = [
-    'scanner-receipt',
-    'scanner-store',
-    'scanner-store-loc',
-    'scanner-issue',
-    'scanner-picking',
-    'scanner-inv',
-    'scanner-defect'
+    'scanner-receipt', 'scanner-store', 'scanner-store-loc',
+    'scanner-issue', 'scanner-picking', 'scanner-inv', 'scanner-defect'
   ];
 
   scannerIds.forEach(id => {
     const inputEl = document.getElementById(id);
     if (!inputEl) return;
 
-    // 1. スペース（空白）による「勝手な確定」を完全にブロックする
+    // スペースキーで他のボタンが反応したり、入力が途切れるのを防ぐ
     inputEl.addEventListener('keydown', function(e) {
       if (e.key === ' ' || e.code === 'Space') {
-        // ブラウザが「スペース」を操作信号（ボタン選択など）として処理するのを防止
-        e.stopPropagation(); 
+        e.stopPropagation();
       }
     });
-
-    // 2. 文字化け（半角カナ・全角英数）をブラウザ側で強制パースする補助
-    // ※スキャナーが超高速で文字を打ち込む際、IME（日本語入力）の誤作動を防ぐために
-    // 入力中の文字をそのまま生データとして確定させます。
-    inputEl.addEventListener('compositionend', function(e) {
-      // 変換が走ってしまった場合も、確定した文字列をそのままインプットに結合
-      e.stopPropagation();
-    });
   });
-
-  console.log("Unitech MS926 スキャンパッチが適用されました。");
+  console.log("Scanner Patch Active");
 })();
+</script>
 </body>
 </html>
