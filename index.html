@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate">
 <title>在庫管理 - 早津工業社</title>
+<!-- ── PWA ── -->
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="WMS">
+<meta name="theme-color" content="#1a3faf">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
@@ -3989,6 +3998,45 @@ function ssSave(){
 }
 
 document.addEventListener('DOMContentLoaded',init);
+
+// ═══════════════════════════════════════════
+// PWA / SERVICE WORKER 登録
+// ═══════════════════════════════════════════
+(function(){
+  if(!('serviceWorker' in navigator)) return;
+
+  navigator.serviceWorker.register('./sw.js', {scope: './'})
+    .then(function(reg){
+      if(reg.waiting){
+        reg.waiting.postMessage({type:'SKIP_WAITING'});
+      }
+      reg.addEventListener('updatefound', function(){
+        var newWorker = reg.installing;
+        newWorker.addEventListener('statechange', function(){
+          if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
+            if(typeof showToast === 'function'){
+              showToast('アプリを更新しました。次回起動時に反映されます。', 'info');
+            }
+          }
+        });
+      });
+      console.log('[PWA] SW registered. scope:', reg.scope);
+    })
+    .catch(function(err){
+      console.warn('[PWA] SW registration failed:', err);
+    });
+
+  // SW更新後：スキャン中でなければリロード
+  var _swReloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if(_swReloading) return;
+    _swReloading = true;
+    var active = document.activeElement;
+    if(active && active.classList && active.classList.contains('scan-hidden')){
+      setTimeout(function(){ window.location.reload(); }, 3000);
+    }
+  });
+})();
 </script>
 </body>
 </html>
